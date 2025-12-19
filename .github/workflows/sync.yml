@@ -1,73 +1,250 @@
 name: Google Drive Auto Sync
 
 on:
-  # Chạy tự động mỗi 5 phút
   schedule:
     - cron: '*/5 * * * *'
-  
-  # Cho phép chạy thủ công từ GitHub web
   workflow_dispatch:
+    inputs:
+      force_message:
+        description: 'Send Telegram notification even if no changes'
+        required: false
+        default: 'false'
+
+env:
+  REMOTE_NAME: gdrive
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install rclone
         run: |
-          curl https://rclone.org/install.sh | sudo bash
-          rclone version
+          curl -s https://rclone.org/install.sh | sudo bash
+          echo "✅ rclone $(rclone version | head -1)"
 
       - name: Setup rclone config
         run: |
           mkdir -p ~/.config/rclone
           echo '${{ secrets.RCLONE_CONFIG }}' > ~/.config/rclone/rclone.conf
-          echo "Config file created"
-          cat ~/.config/rclone/rclone.conf | head -5
 
-      - name: Test rclone connection
+      - name: Load sync config
+        id: config
         run: |
-          echo "Testing Google Drive connection..."
-          rclone lsd gdrive: --max-depth 1 || echo "Connection test done"
+          # Parse SYNC_CONFIG secret (JSON format)
+          CONFIG='${{ secrets.SYNC_CONFIG }}'
+          
+          # If no SYNC_CONFIG, use default
+          if [ -z "$CONFIG" ] || [ "$CONFIG" = "" ]; then
+            echo "Using default config"
+            CONFIG='{"folders":[{"name":"test","src":"01","dst":"02","on":true},{"name":"cpp","src":"C++ T10 2025","dst":"C++","on":true}],"excludes":["*.tmp","~$*","Thumbs.db","desktop.ini",".DS_Store"],"retryCount":3,"retryDelay":30}'
+          fi
+          
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
 
-      - name: Sync Folder 1 - test (01 to 02)
-        continue-on-error: true
+      - name: Initialize state file
         run: |
-          echo "========================================"
-          echo "Syncing: gdrive:01 -> gdrive:02"
-          echo "========================================"
-          rclone copy "gdrive:01" "gdrive:02" \
-            --exclude "*.tmp" \
-            --exclude "~\$*" \
-            --exclude "Thumbs.db" \
-            --exclude "desktop.ini" \
-            --exclude ".DS_Store" \
-            --create-empty-src-dirs \
-            -v \
-            --stats-one-line \
-            2>&1 || true
-          echo "Folder 1 sync completed"
+          if [ ! -f state.json ]; then
+            echo '{"stats":{"totalSyncs":0,"totalFiles":0,"totalBytes":0,"success":0,"fail":0,"lastSync":""},"history":[]}' > state.json
+          fi
+          cat state.json
 
-      - name: Sync Folder 2 - cpp (C++ T10 2025 to C++)
-        continue-on-error: true
+      - name: Run sync
+        id: sync
         run: |
+          CONFIG='${{ steps.config.outputs.config }}'
+          
+          # Parse folders from config
+          FOLDERS=$(echo "$CONFIG" | jq -r '.folders[] | select(.on==true) | @base64')
+          EXCLUDES=$(echo "$CONFIG" | jq -r '.excludes[]' 2>/dev/null || echo "")
+          RETRY_COUNT=$(echo "$CONFIG" | jq -r '.retryCount // 3')
+          RETRY_DELAY=$(echo "$CONFIG" | jq -r '.retryDelay // 30')
+          
+          # Build exclude args
+          EXCLUDE_ARGS=""
+          for pattern in $EXCLUDES; do
+            EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude $pattern"
+          done
+          
+          TOTAL_FILES=0
+          TOTAL_BYTES=0
+          FAIL_COUNT=0
+          SUCCESS_COUNT=0
+          SYNC_DETAILS=""
+          
+          START_TIME=$(date +%s)
+          
+          for row in $FOLDERS; do
+            _decode() { echo "$row" | base64 -d | jq -r "$1"; }
+            
+            NAME=$(_decode '.name')
+            SRC=$(_decode '.src')
+            DST=$(_decode '.dst')
+            
+            echo "========================================"
+            echo "🔄 Syncing: $NAME"
+            echo "   $SRC -> $DST"
+            echo "========================================"
+            
+            LOG_FILE="/tmp/${NAME}.log"
+            SUCCESS=false
+            
+            for attempt in $(seq 1 $RETRY_COUNT); do
+              echo "📤 Attempt $attempt/$RETRY_COUNT..."
+              
+              if rclone copy "${REMOTE_NAME}:${SRC}" "${REMOTE_NAME}:${DST}" \
+                $EXCLUDE_ARGS \
+                --create-empty-src-dirs \
+                -v \
+                --stats-one-line \
+                --log-file="$LOG_FILE" \
+                --use-json-log 2>&1; then
+                
+                SUCCESS=true
+                echo "✅ Success!"
+                break
+              else
+                echo "⚠️ Attempt $attempt failed"
+                [ $attempt -lt $RETRY_COUNT ] && sleep $RETRY_DELAY
+              fi
+            done
+            
+            # Parse log for synced files
+            FILES_COUNT=0
+            BYTES_COUNT=0
+            
+            if [ -f "$LOG_FILE" ]; then
+              FILES_COUNT=$(grep -c '"msg":"Copied"' "$LOG_FILE" 2>/dev/null || echo 0)
+              UPDATED=$(grep -c '"msg":"Updated"' "$LOG_FILE" 2>/dev/null || echo 0)
+              FILES_COUNT=$((FILES_COUNT + UPDATED))
+              
+              if [ $FILES_COUNT -gt 0 ]; then
+                echo "📁 Files synced: $FILES_COUNT"
+                grep '"msg":"Copied"\|"msg":"Updated"' "$LOG_FILE" | \
+                  grep -o '"object":"[^"]*"' | \
+                  sed 's/"object":"//g' | sed 's/"//g' | \
+                  head -10 | while read f; do echo "   ✓ $f"; done
+              fi
+            fi
+            
+            if [ "$SUCCESS" = true ]; then
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              TOTAL_FILES=$((TOTAL_FILES + FILES_COUNT))
+              [ $FILES_COUNT -gt 0 ] && SYNC_DETAILS="${SYNC_DETAILS}✅ ${NAME}: ${FILES_COUNT} files\n"
+            else
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+              SYNC_DETAILS="${SYNC_DETAILS}❌ ${NAME}: failed\n"
+            fi
+            
+            echo ""
+          done
+          
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
           echo "========================================"
-          echo "Syncing: gdrive:C++ T10 2025 -> gdrive:C++"
+          echo "📊 SUMMARY"
           echo "========================================"
-          rclone copy "gdrive:C++ T10 2025" "gdrive:C++" \
-            --exclude "*.tmp" \
-            --exclude "~\$*" \
-            --exclude "Thumbs.db" \
-            --exclude "desktop.ini" \
-            --exclude ".DS_Store" \
-            --create-empty-src-dirs \
-            -v \
-            --stats-one-line \
-            2>&1 || true
-          echo "Folder 2 sync completed"
+          echo "Total files: $TOTAL_FILES"
+          echo "Success: $SUCCESS_COUNT, Failed: $FAIL_COUNT"
+          echo "Duration: ${DURATION}s"
+          
+          # Output for next steps
+          echo "total_files=$TOTAL_FILES" >> $GITHUB_OUTPUT
+          echo "total_bytes=$TOTAL_BYTES" >> $GITHUB_OUTPUT
+          echo "success_count=$SUCCESS_COUNT" >> $GITHUB_OUTPUT
+          echo "fail_count=$FAIL_COUNT" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "details<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$SYNC_DETAILS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Summary
+      - name: Update state.json
         run: |
-          echo "========================================"
-          echo "All syncs completed at $(date)"
-          echo "========================================"
+          TOTAL_FILES=${{ steps.sync.outputs.total_files }}
+          SUCCESS=${{ steps.sync.outputs.success_count }}
+          FAIL=${{ steps.sync.outputs.fail_count }}
+          DURATION=${{ steps.sync.outputs.duration }}
+          NOW=$(date '+%Y-%m-%d %H:%M:%S')
+          
+          # Update state.json using jq
+          jq --arg now "$NOW" \
+             --argjson files "$TOTAL_FILES" \
+             --argjson success "$SUCCESS" \
+             --argjson fail "$FAIL" \
+             --argjson dur "$DURATION" \
+             '.stats.totalSyncs += 1 |
+              .stats.totalFiles += $files |
+              .stats.success += $success |
+              .stats.fail += $fail |
+              .stats.lastSync = $now |
+              .history = ([{
+                "time": $now,
+                "files": $files,
+                "success": ($fail == 0),
+                "duration": $dur
+              }] + .history) | .history = .history[:100]' \
+             state.json > state.tmp.json && mv state.tmp.json state.json
+          
+          echo "Updated state.json:"
+          cat state.json | jq '.stats'
+
+      - name: Commit state.json
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add state.json
+          git diff --staged --quiet || git commit -m "📊 Update sync stats - $(date '+%Y-%m-%d %H:%M')"
+          git push || echo "Nothing to push"
+
+      - name: Send Telegram notification
+        if: always()
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Skip if no token configured
+          if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram not configured, skipping notification"
+            exit 0
+          fi
+          
+          TOTAL_FILES=${{ steps.sync.outputs.total_files || 0 }}
+          SUCCESS=${{ steps.sync.outputs.success_count || 0 }}
+          FAIL=${{ steps.sync.outputs.fail_count || 0 }}
+          DURATION=${{ steps.sync.outputs.duration || 0 }}
+          DETAILS='${{ steps.sync.outputs.details }}'
+          
+          # Only send if there are changes or failures
+          if [ "$TOTAL_FILES" -gt 0 ] || [ "$FAIL" -gt 0 ] || [ "${{ inputs.force_message }}" = "true" ]; then
+            
+            if [ "$FAIL" -gt 0 ]; then
+              STATUS="⚠️ *Sync có lỗi*"
+            elif [ "$TOTAL_FILES" -gt 0 ]; then
+              STATUS="✅ *Sync thành công*"
+            else
+              STATUS="ℹ️ *Không có thay đổi*"
+            fi
+            
+            MESSAGE="🔄 *Drive Sync Report*
+            
+${STATUS}
+
+📁 Files: ${TOTAL_FILES}
+✅ Success: ${SUCCESS}
+❌ Failed: ${FAIL}
+⏱️ Duration: ${DURATION}s
+🕐 Time: $(date '+%Y-%m-%d %H:%M:%S')
+
+${DETAILS}"
+            
+            curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "parse_mode=Markdown" \
+              -d "text=${MESSAGE}" || echo "Failed to send Telegram message"
+          fi
