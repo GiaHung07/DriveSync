@@ -131,13 +131,8 @@ jobs:
             # Nhiều kiểu chào ngẫu nhiên
             GREETINGS=(
               "Thầy ơi có file mới"
-              "Đại ca ơi, có file mới nè"
-              "Ê có file mới kìa"
-              "Boss ơi, file mới sync xong"
-              "Có file mới rồi nha"
-              "File mới sync xong rồi đó"
-              "Thầy ơi có bài nộp rồi"
-              "Cập nhật: có file mới"
+              "Đại ca ơi, có file mới"
+              "file vừa sync xong"
             )
             GREETING="${GREETINGS[$((RANDOM % ${#GREETINGS[@]}))]}"
             
