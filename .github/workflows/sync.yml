@@ -116,7 +116,7 @@ jobs:
         if: always()
         run: |
           FILES="${{ steps.sync.outputs.files }}"
-          NOW=$(date '+%Y-%m-%d %H:%M:%S')
+          NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%Y-%m-%d %H:%M:%S')
           FILES=${FILES:-0}
           
           echo "Updating state.json with $FILES files at $NOW"
@@ -159,7 +159,7 @@ jobs:
           
           FILES="${{ steps.sync.outputs.files }}"
           FILENAMES="${{ steps.sync.outputs.filenames }}"
-          NOW=$(date '+%H:%M:%S')
+          NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
           FILES=${FILES:-0}
           
           echo "DEBUG: FILES=$FILES, FILENAMES=$FILENAMES"
