@@ -82,14 +82,15 @@ function getStatusEmoji(success, total) {
 // ═══════════════════════════════════════════════════════════════
 
 async function cmdStart(token, chatId) {
-    const text = `<b>Drive Sync Bot</b>
+    const text = `🤖 <b>Drive Sync Bot</b>
 
-/sync - Đồng bộ ngay
-/status - Xem trạng thái
-/history - Lịch sử sync
-/help - Trợ giúp
+📌 <b>Lệnh:</b>
+/sync - 🔄 Đồng bộ ngay
+/status - 📊 Xem trạng thái
+/history - 📜 Lịch sử sync
+/help - ❓ Trợ giúp
 
-Auto-sync: 10 phút`;
+⏰ Auto-sync: 10 phút`;
     await sendMessage(token, chatId, text);
 }
 
@@ -97,20 +98,19 @@ async function cmdDashboard(token, chatId, repo) {
     const state = await getState(repo);
     const s = state.stats;
 
-    const text = `<b>Dashboard</b>
+    const text = `📊 <b>Dashboard</b>
 
-Tổng sync: ${s.totalSyncs || 0}
-Files đã sync: ${s.totalFiles || 0}
-Lần cuối: ${s.lastSync || 'Chưa có'}
+🔄 Tổng sync: ${s.totalSyncs || 0}
+📁 Files đã sync: ${s.totalFiles || 0}
+⏰ Lần cuối: ${s.lastSync || 'Chưa có'}
 
-Chu kỳ: 10 phút
-Mode: Copy 1 chiều`;
+⚙️ Chu kỳ: 10 phút | Mode: Copy`;
 
     const keyboard = {
         inline_keyboard: [
             [
-                { text: 'Sync', callback_data: 'sync' },
-                { text: 'History', callback_data: 'history' }
+                { text: '🔄 Sync', callback_data: 'sync' },
+                { text: '📜 History', callback_data: 'history' }
             ]
         ]
     };
@@ -122,13 +122,13 @@ async function cmdStatus(token, chatId, repo) {
     const state = await getState(repo);
     const s = state.stats;
 
-    const text = `<b>Status</b>
+    const text = `📈 <b>Status</b>
 
-Trạng thái: Online
-Tổng sync: ${s.totalSyncs || 0}
-Files: ${s.totalFiles || 0}
-Lần cuối: ${s.lastSync || 'N/A'}
-Chu kỳ: 10 phút`;
+🟢 Trạng thái: Online
+🔄 Tổng sync: ${s.totalSyncs || 0}
+📁 Files: ${s.totalFiles || 0}
+⏰ Lần cuối: ${s.lastSync || 'N/A'}
+⚙️ Chu kỳ: 10 phút`;
 
     await sendMessage(token, chatId, text);
 }
@@ -138,12 +138,12 @@ async function cmdStats(token, chatId, repo) {
     const s = state.stats;
     const avg = s.totalSyncs > 0 ? Math.round(s.totalFiles / s.totalSyncs * 10) / 10 : 0;
 
-    const text = `<b>Statistics</b>
+    const text = `📊 <b>Statistics</b>
 
-Tổng sync: ${s.totalSyncs || 0}
-Tổng files: ${s.totalFiles || 0}
-TB/sync: ${avg} files
-Mode: Copy 1 chiều`;
+🔄 Tổng sync: ${s.totalSyncs || 0}
+📁 Tổng files: ${s.totalFiles || 0}
+📈 TB/sync: ${avg} files
+⚡ Mode: Copy 1 chiều`;
 
     await sendMessage(token, chatId, text);
 }
@@ -152,14 +152,15 @@ async function cmdHistory(token, chatId, repo) {
     const state = await getState(repo);
     const history = state.history || [];
 
-    let list = 'Chưa có lịch sử';
+    let list = '📭 Chưa có lịch sử';
     if (history.length > 0) {
-        list = history.slice(0, 10).map(h =>
-            `${h.time} - ${h.files || 0} files`
-        ).join('\n');
+        list = history.slice(0, 10).map(h => {
+            const icon = h.files > 0 ? '✅' : '⚪';
+            return `${icon} ${h.time} - ${h.files || 0} files`;
+        }).join('\n');
     }
 
-    const text = `<b>History</b>
+    const text = `📜 <b>History</b>
 
 ${list}`;
 
@@ -177,53 +178,54 @@ async function cmdReport(token, chatId, repo) {
     });
     const files24h = last24h.reduce((sum, h) => sum + (h.files || 0), 0);
 
-    const text = `<b>Report 24h</b>
+    const text = `📑 <b>Report 24h</b>
 
-Sync: ${last24h.length} lần
-Files: ${files24h}
-Tổng sync: ${s.totalSyncs || 0}
-Tổng files: ${s.totalFiles || 0}`;
+🔄 Sync hôm nay: ${last24h.length} lần
+📁 Files hôm nay: ${files24h}
+📊 Tổng sync: ${s.totalSyncs || 0}
+📂 Tổng files: ${s.totalFiles || 0}`;
 
     await sendMessage(token, chatId, text);
 }
 
 async function cmdSync(token, chatId, repo, ghToken) {
     if (!ghToken) {
-        await sendMessage(token, chatId, 'Cần GITHUB_TOKEN để trigger.');
+        await sendMessage(token, chatId, '⚠️ Cần GITHUB_TOKEN để trigger.');
         return;
     }
-    await sendMessage(token, chatId, 'Đang trigger sync...');
+    await sendMessage(token, chatId, '⏳ Đang trigger sync...');
     const ok = await triggerSync(repo, ghToken);
-    await sendMessage(token, chatId, ok ? 'Đã trigger! Chờ 30-60s.' : 'Lỗi. Check token.');
+    await sendMessage(token, chatId, ok ? '✅ Đã trigger! Chờ 30-60s.' : '❌ Lỗi. Check token.');
 }
 
 async function cmdSettings(token, chatId, repo) {
-    const text = `<b>Settings</b>
+    const text = `⚙️ <b>Settings</b>
 
-Interval: 10 phút
-Mode: Copy 1 chiều
-Notify: Khi có file mới
+⏱️ Interval: 10 phút
+📤 Mode: Copy 1 chiều
+🔔 Notify: Khi có file mới
 
-Sửa: GitHub Secrets`;
+📝 Sửa: GitHub Secrets`;
 
     const keyboard = {
         inline_keyboard: [[
-            { text: 'GitHub', url: `https://github.com/${repo}` }
+            { text: '🔗 GitHub', url: `https://github.com/${repo}` }
         ]]
     };
     await sendMessage(token, chatId, text, { reply_markup: keyboard });
 }
 
 async function cmdHelp(token, chatId) {
-    const text = `<b>Help</b>
+    const text = `❓ <b>Help</b>
 
-/sync - Đồng bộ ngay
-/status - Trạng thái
-/history - Lịch sử
-/stats - Thống kê
-/settings - Cài đặt
+📌 <b>Lệnh:</b>
+/sync - 🔄 Đồng bộ ngay
+/status - 📊 Trạng thái
+/history - 📜 Lịch sử
+/stats - 📈 Thống kê
+/settings - ⚙️ Cài đặt
 
-Auto-sync: 10 phút`;
+⏰ Auto-sync mỗi 10 phút`;
     await sendMessage(token, chatId, text);
 }
 
