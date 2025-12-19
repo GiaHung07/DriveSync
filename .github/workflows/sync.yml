@@ -24,7 +24,6 @@ jobs:
         run: |
           mkdir -p ~/.config/rclone
           echo '${{ secrets.RCLONE_CONFIG }}' > ~/.config/rclone/rclone.conf
-          rclone listremotes
 
       - name: Sync folders
         id: sync
@@ -32,84 +31,48 @@ jobs:
         env:
           SYNC_PAIRS: ${{ secrets.SYNC_FOLDERS }}
         run: |
-          echo "Starting sync at $(date)"
+          echo "Starting sync..."
           
-          SUCCESS=0
-          FAIL=0
-          TOTAL_FILES=0
+          TOTAL=0
+          LOG1="/tmp/sync1.log"
+          LOG2="/tmp/sync2.log"
           
-          if [ -z "$SYNC_PAIRS" ]; then
-            echo "ERROR: SYNC_FOLDERS secret not set!"
-            echo "success=0" >> $GITHUB_OUTPUT
-            echo "fail=1" >> $GITHUB_OUTPUT
-            echo "files=0" >> $GITHUB_OUTPUT
-            exit 0
+          # Parse pairs
+          PAIR1=$(echo "$SYNC_PAIRS" | cut -d',' -f1)
+          PAIR2=$(echo "$SYNC_PAIRS" | cut -d',' -f2)
+          
+          # Sync pair 1
+          if [ -n "$PAIR1" ]; then
+            SRC1=$(echo "$PAIR1" | cut -d':' -f1)
+            DST1=$(echo "$PAIR1" | cut -d':' -f2)
+            echo "Pair 1: $SRC1 -> $DST1"
+            
+            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" \
+              --exclude "*.tmp" --exclude "Thumbs.db" \
+              -v --log-file="$LOG1" --use-json-log --retries 3 2>&1 || true
+            
+            C1=$(grep -c '"msg":"Copied"' "$LOG1" 2>/dev/null || echo 0)
+            echo "Pair 1 copied: $C1 files"
+            TOTAL=$((TOTAL + C1))
           fi
           
-          echo "Sync pairs: $SYNC_PAIRS"
+          # Sync pair 2
+          if [ -n "$PAIR2" ]; then
+            SRC2=$(echo "$PAIR2" | cut -d':' -f1)
+            DST2=$(echo "$PAIR2" | cut -d':' -f2)
+            echo "Pair 2: $SRC2 -> $DST2"
+            
+            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" \
+              --exclude "*.tmp" --exclude "Thumbs.db" \
+              -v --log-file="$LOG2" --use-json-log --retries 3 2>&1 || true
+            
+            C2=$(grep -c '"msg":"Copied"' "$LOG2" 2>/dev/null || echo 0)
+            echo "Pair 2 copied: $C2 files"
+            TOTAL=$((TOTAL + C2))
+          fi
           
-          # Split by comma
-          echo "$SYNC_PAIRS" | tr ',' '\n' | while read PAIR; do
-            if [ -z "$PAIR" ]; then
-              continue
-            fi
-            
-            SRC=$(echo "$PAIR" | cut -d':' -f1)
-            DST=$(echo "$PAIR" | cut -d':' -f2)
-            
-            echo ""
-            echo "========================================"
-            echo "Syncing: '$SRC' -> '$DST'"
-            echo "========================================"
-            
-            LOG="/tmp/sync_$(echo $SRC | tr ' ' '_').log"
-            rm -f "$LOG"
-            
-            # List source folder first
-            echo "Checking source folder..."
-            rclone lsf "gdrive:${SRC}" --max-depth 1 2>&1 | head -5 || echo "Could not list source"
-            
-            echo "Running rclone copy..."
-            if rclone copy "gdrive:${SRC}" "gdrive:${DST}" \
-              --exclude "*.tmp" \
-              --exclude "~\$*" \
-              --exclude "Thumbs.db" \
-              -v \
-              --stats-one-line \
-              --log-file="$LOG" \
-              --use-json-log \
-              --retries 3 2>&1; then
-              
-              echo "Sync completed for this pair"
-              
-              COPIED=$(grep -c '"msg":"Copied"' "$LOG" 2>/dev/null || echo "0")
-              echo "Files copied: $COPIED"
-              
-              if [ "$COPIED" != "0" ]; then
-                grep '"msg":"Copied"' "$LOG" | jq -r '.object' 2>/dev/null | head -5
-              fi
-            else
-              echo "Sync failed for this pair!"
-              tail -10 "$LOG" 2>/dev/null
-            fi
-            
-            echo "========================================"
-          done
-          
-          # Re-count from logs
-          TOTAL_COPIED=0
-          for logfile in /tmp/sync_*.log; do
-            if [ -f "$logfile" ]; then
-              COUNT=$(grep -c '"msg":"Copied"' "$logfile" 2>/dev/null || true)
-              TOTAL_COPIED=$((TOTAL_COPIED + COUNT))
-            fi
-          done
-          
-          echo ""
-          echo "FINAL SUMMARY"
-          echo "Total files copied: $TOTAL_COPIED"
-          
-          echo "files=$TOTAL_COPIED" >> $GITHUB_OUTPUT
+          echo "TOTAL FILES COPIED: $TOTAL"
+          echo "files=$TOTAL" >> $GITHUB_OUTPUT
 
       - name: Update state.json
         if: always()
@@ -119,12 +82,12 @@ jobs:
           FILES=${FILES:-0}
           
           if [ ! -f state.json ]; then
-            echo '{"stats":{"totalSyncs":0,"totalFiles":0,"success":0,"fail":0,"lastSync":""},"history":[]}' > state.json
+            echo '{"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}' > state.json
           fi
           
           jq --arg now "$NOW" --argjson files "$FILES" \
              '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | 
-              .history = ([{"time": $now, "files": $files, "success": true}] + .history) | 
+              .history = ([{"time": $now, "files": $files}] + .history) | 
               .history = .history[:50]' state.json > tmp.json && mv tmp.json state.json
 
       - name: Commit state.json
@@ -147,13 +110,13 @@ jobs:
           fi
           
           FILES="${{ steps.sync.outputs.files }}"
-          NOW=$(date '+%Y-%m-%d %H:%M:%S')
+          NOW=$(date '+%H:%M:%S')
           FILES=${FILES:-0}
           
-          if [ "$FILES" = "0" ]; then
-            MESSAGE="🔄 Sync xong. Không có file mới. Time: ${NOW}"
+          if [ "$FILES" = "0" ] || [ -z "$FILES" ]; then
+            MESSAGE="🔄 Sync hoàn tất - Không có file mới (${NOW})"
           else
-            MESSAGE="✅ Đã sync ${FILES} file mới! Time: ${NOW}"
+            MESSAGE="✅ Đã sync ${FILES} file! (${NOW})"
           fi
           
           curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
