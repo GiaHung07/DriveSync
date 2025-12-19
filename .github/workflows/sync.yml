@@ -95,14 +95,24 @@ jobs:
           NOW=$(date '+%Y-%m-%d %H:%M:%S')
           FILES=${FILES:-0}
           
-          if [ ! -f state.json ]; then
-            echo '{"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}' > state.json
+          echo "Updating state.json with $FILES files at $NOW"
+          
+          # Reset to simple format if needed
+          cat > state.json << 'EOF'
+          {"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}
+          EOF
+          
+          # Hoặc update existing
+          if [ -f state.json ]; then
+            jq --arg now "$NOW" --argjson files "$FILES" \
+               '.stats.totalSyncs = (.stats.totalSyncs // 0) + 1 | 
+                .stats.totalFiles = (.stats.totalFiles // 0) + $files | 
+                .stats.lastSync = $now | 
+                .history = ([{"time": $now, "files": $files}] + (.history // [])) | 
+                .history = .history[:50]' state.json > tmp.json && mv tmp.json state.json
           fi
           
-          jq --arg now "$NOW" --argjson files "$FILES" \
-             '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | 
-              .history = ([{"time": $now, "files": $files}] + .history) | 
-              .history = .history[:50]' state.json > tmp.json && mv tmp.json state.json
+          cat state.json
 
       - name: Commit state.json
         if: always()
