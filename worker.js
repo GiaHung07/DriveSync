@@ -82,79 +82,35 @@ function getStatusEmoji(success, total) {
 // ═══════════════════════════════════════════════════════════════
 
 async function cmdStart(token, chatId) {
-    const text = `
-╔══════════════════════════════════╗
-║  🤖 <b>DRIVE SYNC DASHBOARD</b>  ║
-╚══════════════════════════════════╝
+    const text = `<b>Drive Sync Bot</b>
 
-Chào mừng bạn đến với hệ thống quản lý đồng bộ Google Drive tự động!
+/sync - Đồng bộ ngay
+/status - Xem trạng thái
+/history - Lịch sử sync
+/help - Trợ giúp
 
-<b>━━━ 🎮 ĐIỀU KHIỂN ━━━</b>
-/dashboard - 📊 Bảng điều khiển chính
-/sync - 🔄 Đồng bộ ngay lập tức
-/status - 📈 Trạng thái hệ thống
-
-<b>━━━ 📋 THỐNG KÊ ━━━</b>
-/stats - 📊 Thống kê chi tiết
-/history - 📜 Lịch sử hoạt động
-/report - 📑 Báo cáo tổng hợp
-
-<b>━━━ ⚙️ CÀI ĐẶT ━━━</b>
-/settings - ⚙️ Cấu hình hệ thống
-/help - ❓ Trợ giúp
-
-<b>━━━━━━━━━━━━━━━━━━━━</b>
-⏰ Auto-sync: <code>Mỗi 5 phút</code>
-🔒 Bảo mật: <code>Đã mã hóa</code>
-`;
+Auto-sync: 10 phút`;
     await sendMessage(token, chatId, text);
 }
 
 async function cmdDashboard(token, chatId, repo) {
     const state = await getState(repo);
     const s = state.stats;
-    const statusEmoji = getStatusEmoji(s.totalSyncs - (s.fail || 0), s.totalSyncs);
 
-    const text = `
-╔══════════════════════════════════╗
-║  📊 <b>ADMIN DASHBOARD</b>       ║
-╚══════════════════════════════════╝
+    const text = `<b>Dashboard</b>
 
-${statusEmoji} <b>TRẠNG THÁI: HOẠT ĐỘNG</b>
+Tổng sync: ${s.totalSyncs || 0}
+Files đã sync: ${s.totalFiles || 0}
+Lần cuối: ${s.lastSync || 'Chưa có'}
 
-<b>━━━ 📈 TỔNG QUAN ━━━</b>
-┃ 🔄 Tổng sync: <b>${formatNumber(s.totalSyncs)}</b> lần
-┃ 📁 Files đã sync: <b>${formatNumber(s.totalFiles)}</b>
-┃ ⏰ Lần cuối: <code>${s.lastSync || 'Chưa có'}</code>
-┃ 📡 Uptime: <b>${formatUptime()}</b>
-
-<b>━━━ 📂 FOLDERS ━━━</b>
-┃ 📦 Số cặp folder: <b>2</b>
-┃ ⚡ Chế độ: <b>Copy (1 chiều)</b>
-┃ 🔄 Chu kỳ: <b>5 phút</b>
-
-<b>━━━ 🛡️ BẢO MẬT ━━━</b>
-┃ 🔐 Config: <code>Mã hóa</code>
-┃ 🔒 Token: <code>Ẩn</code>
-┃ 👤 Quyền: <code>Admin only</code>
-
-<b>━━━━━━━━━━━━━━━━━━━━</b>
-🕐 Cập nhật: <code>${new Date().toISOString().slice(0, 19).replace('T', ' ')}</code>
-`;
+Chu kỳ: 10 phút
+Mode: Copy 1 chiều`;
 
     const keyboard = {
         inline_keyboard: [
             [
-                { text: '🔄 Sync Now', callback_data: 'sync' },
-                { text: '📊 Stats', callback_data: 'stats' }
-            ],
-            [
-                { text: '📜 History', callback_data: 'history' },
-                { text: '📑 Report', callback_data: 'report' }
-            ],
-            [
-                { text: '⚙️ Settings', callback_data: 'settings' },
-                { text: '❓ Help', callback_data: 'help' }
+                { text: 'Sync', callback_data: 'sync' },
+                { text: 'History', callback_data: 'history' }
             ]
         ]
     };
@@ -165,33 +121,14 @@ ${statusEmoji} <b>TRẠNG THÁI: HOẠT ĐỘNG</b>
 async function cmdStatus(token, chatId, repo) {
     const state = await getState(repo);
     const s = state.stats;
-    const rate = s.totalSyncs > 0 ? Math.round(((s.totalSyncs - (s.fail || 0)) / s.totalSyncs) * 100) : 100;
 
-    const text = `
-╔══════════════════════════════════╗
-║  📈 <b>SYSTEM STATUS</b>         ║
-╚══════════════════════════════════╝
+    const text = `<b>Status</b>
 
-<b>━━━ 🖥️ HỆ THỐNG ━━━</b>
-┃ 🟢 Trạng thái: <b>ONLINE</b>
-┃ ⚡ Hiệu suất: <b>${rate}%</b>
-┃ 🔄 Auto-sync: <b>BẬT</b>
-
-<b>━━━ 📊 SỐ LIỆU ━━━</b>
-┃ 📤 Tổng sync: <b>${formatNumber(s.totalSyncs)}</b>
-┃ 📁 Tổng files: <b>${formatNumber(s.totalFiles)}</b>
-┃ ✅ Thành công: <b>${rate}%</b>
-
-<b>━━━ ⏰ THỜI GIAN ━━━</b>
-┃ 🕐 Sync cuối: <code>${s.lastSync || 'N/A'}</code>
-┃ ⏱️ Chu kỳ: <code>5 phút</code>
-┃ 📡 Next sync: <code>~5 phút</code>
-
-<b>━━━ 🔧 CẤU HÌNH ━━━</b>
-┃ 🌐 Platform: <code>GitHub Actions</code>
-┃ ☁️ Worker: <code>Cloudflare</code>
-┃ 📱 Bot: <code>Telegram</code>
-`;
+Trạng thái: Online
+Tổng sync: ${s.totalSyncs || 0}
+Files: ${s.totalFiles || 0}
+Lần cuối: ${s.lastSync || 'N/A'}
+Chu kỳ: 10 phút`;
 
     await sendMessage(token, chatId, text);
 }
@@ -199,35 +136,14 @@ async function cmdStatus(token, chatId, repo) {
 async function cmdStats(token, chatId, repo) {
     const state = await getState(repo);
     const s = state.stats;
-    const avgFiles = s.totalSyncs > 0 ? Math.round(s.totalFiles / s.totalSyncs * 10) / 10 : 0;
+    const avg = s.totalSyncs > 0 ? Math.round(s.totalFiles / s.totalSyncs * 10) / 10 : 0;
 
-    const text = `
-╔══════════════════════════════════╗
-║  📊 <b>DETAILED STATISTICS</b>   ║
-╚══════════════════════════════════╝
+    const text = `<b>Statistics</b>
 
-<b>━━━ 📈 HOẠT ĐỘNG ━━━</b>
-┃ 🔄 Tổng lần sync: <b>${formatNumber(s.totalSyncs)}</b>
-┃ 📁 Tổng files: <b>${formatNumber(s.totalFiles)}</b>
-┃ 📊 TB mỗi sync: <b>${avgFiles}</b> files
-
-<b>━━━ 📂 FOLDERS ━━━</b>
-┃ 📦 Folder pairs: <b>2</b>
-┃ ➡️ Chiều sync: <b>Source → Dest</b>
-┃ 🔒 Mode: <b>Copy only</b>
-
-<b>━━━ ⚙️ CẤU HÌNH ━━━</b>
-┃ ⏱️ Interval: <b>5 phút</b>
-┃ 🔁 Retry: <b>3 lần</b>
-┃ 🚫 Exclude: <code>*.tmp, Thumbs.db</code>
-
-<b>━━━ 🛡️ BẢO MẬT ━━━</b>
-┃ 🔐 Secrets: <code>GitHub Encrypted</code>
-┃ 🔒 Folders: <code>Ẩn trong Secrets</code>
-
-<b>━━━━━━━━━━━━━━━━━━━━</b>
-📅 Data range: <code>All time</code>
-`;
+Tổng sync: ${s.totalSyncs || 0}
+Tổng files: ${s.totalFiles || 0}
+TB/sync: ${avg} files
+Mode: Copy 1 chiều`;
 
     await sendMessage(token, chatId, text);
 }
@@ -236,27 +152,16 @@ async function cmdHistory(token, chatId, repo) {
     const state = await getState(repo);
     const history = state.history || [];
 
-    let historyText = '';
-    if (history.length === 0) {
-        historyText = '┃ <i>Chưa có lịch sử</i>';
-    } else {
-        history.slice(0, 10).forEach((h, i) => {
-            const icon = h.files > 0 ? '✅' : '⚪';
-            historyText += `┃ ${icon} <code>${h.time}</code> - ${h.files || 0} files\n`;
-        });
+    let list = 'Chưa có lịch sử';
+    if (history.length > 0) {
+        list = history.slice(0, 10).map(h =>
+            `${h.time} - ${h.files || 0} files`
+        ).join('\n');
     }
 
-    const text = `
-╔══════════════════════════════════╗
-║  📜 <b>SYNC HISTORY</b>          ║
-╚══════════════════════════════════╝
+    const text = `<b>History</b>
 
-<b>━━━ 📋 10 LẦN GẦN NHẤT ━━━</b>
-${historyText}
-<b>━━━━━━━━━━━━━━━━━━━━</b>
-
-💡 <i>✅ = Có files | ⚪ = Không có files mới</i>
-`;
+${list}`;
 
     await sendMessage(token, chatId, text);
 }
@@ -270,132 +175,55 @@ async function cmdReport(token, chatId, repo) {
         const hTime = new Date(h.time).getTime();
         return Date.now() - hTime < 24 * 60 * 60 * 1000;
     });
-
     const files24h = last24h.reduce((sum, h) => sum + (h.files || 0), 0);
 
-    const text = `
-╔══════════════════════════════════╗
-║  📑 <b>DAILY REPORT</b>          ║
-╚══════════════════════════════════╝
+    const text = `<b>Report 24h</b>
 
-<b>━━━ 📊 24 GIỜ QUA ━━━</b>
-┃ 🔄 Sync: <b>${last24h.length}</b> lần
-┃ 📁 Files: <b>${files24h}</b>
-┃ ⚡ Trạng thái: <b>Tốt</b>
-
-<b>━━━ 📈 TỔNG ━━━</b>
-┃ 🔄 All-time sync: <b>${formatNumber(s.totalSyncs)}</b>
-┃ 📁 All-time files: <b>${formatNumber(s.totalFiles)}</b>
-
-<b>━━━ 🔧 HỆ THỐNG ━━━</b>
-┃ 🟢 Status: <b>OPERATIONAL</b>
-┃ 📡 Uptime: <b>99.9%</b>
-┃ ⚠️ Errors: <b>0</b>
-
-<b>━━━━━━━━━━━━━━━━━━━━</b>
-📅 Generated: <code>${new Date().toISOString().slice(0, 19).replace('T', ' ')}</code>
-`;
+Sync: ${last24h.length} lần
+Files: ${files24h}
+Tổng sync: ${s.totalSyncs || 0}
+Tổng files: ${s.totalFiles || 0}`;
 
     await sendMessage(token, chatId, text);
 }
 
 async function cmdSync(token, chatId, repo, ghToken) {
-    await sendMessage(token, chatId, `
-╔══════════════════════════════════╗
-║  🔄 <b>MANUAL SYNC</b>           ║
-╚══════════════════════════════════╝
-
-⏳ Đang khởi động sync...
-`);
-
     if (!ghToken) {
-        await sendMessage(token, chatId, `
-⚠️ <b>Cần GitHub Token</b>
-
-Để trigger sync từ bot, cần thêm <code>GITHUB_TOKEN</code> vào Cloudflare Workers.
-
-Hoặc vào GitHub Actions để chạy thủ công.
-`);
+        await sendMessage(token, chatId, 'Cần GITHUB_TOKEN để trigger.');
         return;
     }
-
+    await sendMessage(token, chatId, 'Đang trigger sync...');
     const ok = await triggerSync(repo, ghToken);
-
-    if (ok) {
-        await sendMessage(token, chatId, `
-✅ <b>Đã trigger sync!</b>
-
-⏳ Vui lòng chờ 30-60 giây...
-📱 Bạn sẽ nhận thông báo khi hoàn tất.
-`);
-    } else {
-        await sendMessage(token, chatId, `❌ Không thể trigger. Kiểm tra GitHub Token.`);
-    }
+    await sendMessage(token, chatId, ok ? 'Đã trigger! Chờ 30-60s.' : 'Lỗi. Check token.');
 }
 
 async function cmdSettings(token, chatId, repo) {
-    const text = `
-╔══════════════════════════════════╗
-║  ⚙️ <b>SETTINGS</b>              ║
-╚══════════════════════════════════╝
+    const text = `<b>Settings</b>
 
-<b>━━━ 📂 FOLDERS ━━━</b>
-┃ Quản lý: <code>GitHub Secrets</code>
-┃ Format: <code>src:dst,src2:dst2</code>
+Interval: 10 phút
+Mode: Copy 1 chiều
+Notify: Khi có file mới
 
-<b>━━━ ⏱️ SCHEDULE ━━━</b>
-┃ Interval: <code>5 phút</code>
-┃ Edit: <code>sync.yml > cron</code>
-
-<b>━━━ 🔔 THÔNG BÁO ━━━</b>
-┃ Telegram: <code>Bật</code>
-┃ Filter: <code>Có file mới</code>
-
-<b>━━━ 🔧 NÂNG CAO ━━━</b>
-Để thay đổi cài đặt:
-1. Vào GitHub repo
-2. Sửa file hoặc Secrets
-3. Thay đổi tự động áp dụng
-`;
+Sửa: GitHub Secrets`;
 
     const keyboard = {
         inline_keyboard: [[
-            { text: '🔗 Mở GitHub', url: `https://github.com/${repo}` }
+            { text: 'GitHub', url: `https://github.com/${repo}` }
         ]]
     };
-
     await sendMessage(token, chatId, text, { reply_markup: keyboard });
 }
 
 async function cmdHelp(token, chatId) {
-    const text = `
-╔══════════════════════════════════╗
-║  ❓ <b>HELP & GUIDE</b>          ║
-╚══════════════════════════════════╝
+    const text = `<b>Help</b>
 
-<b>━━━ 📱 COMMANDS ━━━</b>
-┃ /dashboard - Bảng điều khiển
-┃ /status - Trạng thái hệ thống
-┃ /stats - Thống kê chi tiết
-┃ /history - Lịch sử 10 lần sync
-┃ /report - Báo cáo ngày
-┃ /sync - Đồng bộ ngay
-┃ /settings - Cài đặt
+/sync - Đồng bộ ngay
+/status - Trạng thái
+/history - Lịch sử
+/stats - Thống kê
+/settings - Cài đặt
 
-<b>━━━ 🔄 HOẠT ĐỘNG ━━━</b>
-┃ • Tự động sync mỗi 5 phút
-┃ • Thông báo khi có file mới
-┃ • Copy từ Source → Dest
-
-<b>━━━ 🛡️ BẢO MẬT ━━━</b>
-┃ • Folder names ẩn
-┃ • Token mã hóa
-┃ • Chỉ admin truy cập
-
-<b>━━━ 🆘 HỖ TRỢ ━━━</b>
-Liên hệ: GitHub Issues
-`;
-
+Auto-sync: 10 phút`;
     await sendMessage(token, chatId, text);
 }
 
@@ -467,5 +295,16 @@ export default {
         }
 
         return new Response('OK', { status: 200 });
+    },
+
+    // Cron Trigger: Auto sync mỗi phút
+    async scheduled(event, env, ctx) {
+        const REPO = env.GITHUB_REPO || 'PGHungg/DriveSync';
+        const GH_TOKEN = env.GITHUB_TOKEN;
+
+        if (GH_TOKEN) {
+            const ok = await triggerSync(REPO, GH_TOKEN);
+            console.log(`Cron sync triggered: ${ok ? 'success' : 'failed'}`);
+        }
     }
 };
