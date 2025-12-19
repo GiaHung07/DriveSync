@@ -13,56 +13,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install rclone and jq
+      - name: Install rclone
         run: |
           curl -s https://rclone.org/install.sh | sudo bash
-          sudo apt-get install -y jq
           rclone version | head -1
 
       - name: Setup rclone config
         run: |
           mkdir -p ~/.config/rclone
-          cat << 'EOF' > ~/.config/rclone/rclone.conf
-          ${{ secrets.RCLONE_CONFIG }}
-          EOF
+          echo '${{ secrets.RCLONE_CONFIG }}' > ~/.config/rclone/rclone.conf
 
       - name: Sync folders
         id: sync
         run: |
           echo "Starting sync..."
           
-          TOTAL_FILES=0
           SUCCESS=0
           FAIL=0
-          DETAILS=""
           
-          # Folder 1: 01 -> 02
           echo "========================================"
           echo "Syncing: 01 -> 02"
-          if rclone copy "gdrive:01" "gdrive:02" \
-            --exclude "*.tmp" --exclude "~\$*" --exclude "Thumbs.db" \
-            -v --stats-one-line 2>&1; then
+          if rclone copy "gdrive:01" "gdrive:02" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1; then
             SUCCESS=$((SUCCESS + 1))
-            DETAILS="${DETAILS}✅ test: OK\n"
             echo "Success!"
           else
             FAIL=$((FAIL + 1))
-            DETAILS="${DETAILS}❌ test: Failed\n"
             echo "Failed!"
           fi
           
-          # Folder 2: C++ T10 2025 -> C++
           echo "========================================"
           echo "Syncing: C++ T10 2025 -> C++"
-          if rclone copy "gdrive:C++ T10 2025" "gdrive:C++" \
-            --exclude "*.tmp" --exclude "~\$*" --exclude "Thumbs.db" \
-            -v --stats-one-line 2>&1; then
+          if rclone copy "gdrive:C++ T10 2025" "gdrive:C++" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1; then
             SUCCESS=$((SUCCESS + 1))
-            DETAILS="${DETAILS}✅ cpp: OK\n"
             echo "Success!"
           else
             FAIL=$((FAIL + 1))
-            DETAILS="${DETAILS}❌ cpp: Failed\n"
             echo "Failed!"
           fi
           
@@ -71,16 +56,13 @@ jobs:
           
           echo "success=$SUCCESS" >> $GITHUB_OUTPUT
           echo "fail=$FAIL" >> $GITHUB_OUTPUT
-          echo "details<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$DETAILS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send Telegram notification
         if: always()
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
-          CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}"
-          
           if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
             echo "Telegram not configured"
             exit 0
@@ -88,23 +70,15 @@ jobs:
           
           SUCCESS="${{ steps.sync.outputs.success }}"
           FAIL="${{ steps.sync.outputs.fail }}"
-          DETAILS="${{ steps.sync.outputs.details }}"
+          NOW=$(date '+%Y-%m-%d %H:%M:%S')
           
           if [ "$FAIL" -gt 0 ]; then
-            STATUS="⚠️ Sync có lỗi"
+            STATUS="Sync co loi"
           else
-            STATUS="✅ Sync thành công"
+            STATUS="Sync thanh cong"
           fi
           
-          MESSAGE="🔄 Drive Sync Report
-
-$STATUS
-
-✅ Success: $SUCCESS
-❌ Failed: $FAIL
-⏰ $(date '+%Y-%m-%d %H:%M:%S')
-
-$DETAILS"
+          MESSAGE="Drive Sync Report - ${STATUS} - Success: ${SUCCESS}, Failed: ${FAIL} - Time: ${NOW}"
           
           curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
