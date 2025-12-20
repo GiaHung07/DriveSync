@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 2,
-    "totalFiles": 6,
+    "totalSyncs": 3,
+    "totalFiles": 12,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-20 23:11:42"
+    "lastSync": "2025-12-20 23:20:02"
   },
   "history": [
+    {
+      "time": "2025-12-20 23:20:02",
+      "files": 6,
+      "details": "📦 01 → 02:|├── 📄 000003|├── 📂 ⚙️ 000001/cute.bat|├── 📄 000002|├── 🖼️ Bocchi Christmas.jpg|├── 📂 ⚙️ 000001/000101/calculator.exe|├── 📂 🖼️ 000001/000101/Logo_PTIT.png|"
+    },
     {
       "time": "2025-12-20 23:11:42",
       "files": 6,
