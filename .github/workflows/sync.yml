@@ -137,48 +137,30 @@ jobs:
           FILES="${{ steps.sync.outputs.files }}"
           FILES=${FILES:-0}
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
-          EVENT="${{ github.event_name }}"
           
-          echo "Files: $FILES, Event: $EVENT"
+          echo "Files synced: $FILES"
           
-          # Determine if we should send
-          SEND="no"
+          # CHỈ GỬI KHI CÓ FILE MỚI
           if [ "$FILES" -gt 0 ]; then
-            SEND="yes"
-          elif [ "$EVENT" = "repository_dispatch" ] || [ "$EVENT" = "workflow_dispatch" ]; then
-            SEND="yes"
-          fi
-          
-          if [ "$SEND" = "yes" ]; then
             # Build message
-            if [ "$FILES" -gt 0 ] && [ -f /tmp/notify.txt ]; then
+            DETAILS=""
+            if [ -f /tmp/notify.txt ]; then
               DETAILS=$(cat /tmp/notify.txt | head -20)
-              MSG="🚀 *Sync Complete!*
-🕒 $NOW
-📁 $FILES file(s) copied
-
-$DETAILS
-
----
-💡 /sync • /status"
-            else
-              MSG="✅ *Sync Complete!*
-🕒 $NOW
-📁 No new files
-
----
-💡 /sync • /status"
             fi
             
-            # Send
+            # Use printf for multiline
+            MSG=$(printf "🔔 *Có file mới nè sếp ơi!*\n🕒 %s\n📁 %s file(s)\n\n%s\n---\n💡 /sync • /status" "$NOW" "$FILES" "$DETAILS")
+            
+            # Send to Telegram
             if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
               curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
                 -d "chat_id=${CHAT_ID}" \
                 -d "text=${MSG}" \
-                -d "parse_mode=Markdown" || echo "Curl failed"
+                -d "parse_mode=Markdown"
+              echo "Notification sent!"
             else
               echo "Missing BOT_TOKEN or CHAT_ID!"
             fi
           else
-            echo "Skipping notification (scheduled run with 0 files)"
+            echo "No new files. Skipping notification."
           fi
