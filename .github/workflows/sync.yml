@@ -37,6 +37,8 @@ jobs:
         env:
           SYNC_PAIRS: ${{ secrets.SYNC_FOLDERS }}
         run: |
+          set +e  # Don't exit on error
+          
           echo "0" > /tmp/filecount.txt
           > /tmp/notify.txt
           
@@ -54,20 +56,14 @@ jobs:
             rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
             
             C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
+            C1=${C1:-0}
             echo "Pair 1 copied: $C1"
             
             if [ "$C1" -gt 0 ]; then
               echo "📦 $SRC1 → $DST1:" >> /tmp/notify.txt
-              
-              # Get files and format with icons
-              grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 > /tmp/files1.txt
-              TOTAL1=$(wc -l < /tmp/files1.txt)
-              IDX=0
-              
-              while IFS= read -r filepath; do
-                ((IDX++))
+              grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | while read filepath; do
                 ext="${filepath##*.}"
-                ext="${ext,,}"
+                ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
                 case "$ext" in
                   pdf) icon="📕" ;;
                   doc|docx) icon="📘" ;;
@@ -80,19 +76,12 @@ jobs:
                   exe|bat|sh) icon="⚙️" ;;
                   *) icon="📄" ;;
                 esac
-                
-                if [ "$IDX" -eq "$TOTAL1" ]; then
-                  pre="└──"
+                if echo "$filepath" | grep -q "/"; then
+                  echo "├── 📂 $icon $filepath" >> /tmp/notify.txt
                 else
-                  pre="├──"
+                  echo "├── $icon $filepath" >> /tmp/notify.txt
                 fi
-                
-                if [[ "$filepath" == *"/"* ]]; then
-                  echo "$pre 📂 $icon $filepath" >> /tmp/notify.txt
-                else
-                  echo "$pre $icon $filepath" >> /tmp/notify.txt
-                fi
-              done < /tmp/files1.txt
+              done
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -106,20 +95,15 @@ jobs:
             rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log2.txt || true
             
             C2=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
+            C2=${C2:-0}
             echo "Pair 2 copied: $C2"
             
             if [ "$C2" -gt 0 ]; then
               echo "" >> /tmp/notify.txt
               echo "📦 $SRC2 → $DST2:" >> /tmp/notify.txt
-              
-              grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 > /tmp/files2.txt
-              TOTAL2=$(wc -l < /tmp/files2.txt)
-              IDX=0
-              
-              while IFS= read -r filepath; do
-                ((IDX++))
+              grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | while read filepath; do
                 ext="${filepath##*.}"
-                ext="${ext,,}"
+                ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
                 case "$ext" in
                   pdf) icon="📕" ;;
                   doc|docx) icon="📘" ;;
@@ -132,26 +116,19 @@ jobs:
                   exe|bat|sh) icon="⚙️" ;;
                   *) icon="📄" ;;
                 esac
-                
-                if [ "$IDX" -eq "$TOTAL2" ]; then
-                  pre="└──"
+                if echo "$filepath" | grep -q "/"; then
+                  echo "├── 📂 $icon $filepath" >> /tmp/notify.txt
                 else
-                  pre="├──"
+                  echo "├── $icon $filepath" >> /tmp/notify.txt
                 fi
-                
-                if [[ "$filepath" == *"/"* ]]; then
-                  echo "$pre 📂 $icon $filepath" >> /tmp/notify.txt
-                else
-                  echo "$pre $icon $filepath" >> /tmp/notify.txt
-                fi
-              done < /tmp/files2.txt
+              done
             fi
             TOTAL=$((TOTAL + C2))
           fi
           
           echo "=== TOTAL: $TOTAL ==="
           echo "$TOTAL" > /tmp/filecount.txt
-          cat /tmp/notify.txt
+          cat /tmp/notify.txt || true
 
       - name: Update state.json
         if: always()
