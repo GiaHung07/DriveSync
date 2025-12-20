@@ -71,9 +71,9 @@ jobs:
             echo "Pair 1: Before=$BEFORE1, After=$AFTER1, Copied=$C1"
             TOTAL=$((TOTAL + C1))
             
-            # Get file names from source (for notification)
+            # Get file names from source (for notification) - include nested files
             if [ "$C1" -gt 0 ]; then
-              rclone lsf "gdrive:${SRC1}" 2>/dev/null | head -10 >> "$FILELIST" || true
+              rclone lsf "gdrive:${SRC1}" --recursive 2>/dev/null | grep -v '/$' | head -10 >> "$FILELIST" || true
             fi
           fi
           
@@ -99,9 +99,9 @@ jobs:
             echo "Pair 2: Before=$BEFORE2, After=$AFTER2, Copied=$C2"
             TOTAL=$((TOTAL + C2))
             
-            # Get file names for notification
+            # Get file names for notification - include nested files
             if [ "$C2" -gt 0 ]; then
-              rclone lsf "gdrive:${SRC2}" 2>/dev/null | head -10 >> "$FILELIST" || true
+              rclone lsf "gdrive:${SRC2}" --recursive 2>/dev/null | grep -v '/$' | head -10 >> "$FILELIST" || true
             fi
           fi
           
