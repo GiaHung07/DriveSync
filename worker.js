@@ -152,13 +152,13 @@ function getStatusEmoji(success, total) {
 async function cmdStart(token, chatId) {
     const text = `🤖 <b>Drive Sync Bot</b>
 
-📌 <b>Lệnh:</b>
-/sync - 🔄 Đồng bộ ngay
-/status - 📊 Xem trạng thái
-/history - 📜 Lịch sử sync
-/help - ❓ Trợ giúp
+    📌 <b>Lệnh:</b>
+    /sync - 🔄 Đồng bộ ngay
+    /status - 📊 Xem trạng thái
+    /history - 📜 Lịch sử sync
+    /help - ❓ Trợ giúp
 
-⏰ Auto-sync: 10 phút`;
+    ⏰ Auto-sync: 10 phút`;
     await sendMessage(token, chatId, text);
 }
 
@@ -168,11 +168,11 @@ async function cmdDashboard(token, chatId, repo) {
 
     const text = `📊 <b>Dashboard</b>
 
-🔄 Tổng sync: ${s.totalSyncs || 0}
-📁 Files đã sync: ${s.totalFiles || 0}
-⏰ Lần cuối: ${s.lastSync || 'Chưa có'}
+    🔄 Tổng sync: ${s.totalSyncs || 0}
+    📁 Files đã sync: ${s.totalFiles || 0}
+    ⏰ Lần cuối: ${s.lastSync || 'Chưa có'}
 
-⚙️ Chu kỳ: 10 phút | Mode: Copy`;
+    ⚙️ Chu kỳ: 10 phút | Mode: Copy`;
 
     const keyboard = {
         inline_keyboard: [
@@ -192,11 +192,11 @@ async function cmdStatus(token, chatId, repo) {
 
     const text = `📈 <b>Status</b>
 
-🟢 Trạng thái: Online
-🔄 Tổng sync: ${s.totalSyncs || 0}
-📁 Files: ${s.totalFiles || 0}
-⏰ Lần cuối: ${s.lastSync || 'N/A'}
-⚙️ Chu kỳ: 10 phút`;
+    🟢 Trạng thái: Online
+    🔄 Tổng sync: ${s.totalSyncs || 0}
+    📁 Files: ${s.totalFiles || 0}
+    ⏰ Lần cuối: ${s.lastSync || 'N/A'}
+    ⚙️ Chu kỳ: 10 phút`;
 
     await sendMessage(token, chatId, text);
 }
@@ -208,10 +208,10 @@ async function cmdStats(token, chatId, repo) {
 
     const text = `📊 <b>Statistics</b>
 
-🔄 Tổng sync: ${s.totalSyncs || 0}
-📁 Tổng files: ${s.totalFiles || 0}
-📈 TB/sync: ${avg} files
-⚡ Mode: Copy 1 chiều`;
+    🔄 Tổng sync: ${s.totalSyncs || 0}
+    📁 Tổng files: ${s.totalFiles || 0}
+    📈 TB/sync: ${avg} files
+    ⚡ Mode: Copy 1 chiều`;
 
     await sendMessage(token, chatId, text);
 }
@@ -239,21 +239,18 @@ async function cmdHistory(token, chatId, repo) {
 
         // Show file details if available
         if (h.files > 0 && h.details) {
-            const files = h.details.trim().split('\n');
-            // Limit to 3 files per event to save space, or 10 if it's the very latest
-            const displayFiles = files.slice(0, 5);
+            // Split by | since we store with tr '\n' '|'
+            const files = h.details.trim().split('|').filter(f => f.trim());
+            const displayFiles = files.slice(0, 8);
 
             for (const f of displayFiles) {
-                // Formatting: Remove box header if exist, just show filenames
-                let cleanName = f.replace(/�.*->.*/, '').replace('- ', '').trim();
-                // If line was just a header "📦...", keep it bold
-                if (f.includes('📦')) {
-                    text += `\n   └─ <b>${f}</b>`;
-                } else if (cleanName) {
-                    text += `\n   └─ 📄 ${cleanName}`;
-                }
+                const line = f.trim();
+                if (!line) continue;
+
+                // Just display the line as-is since it already has icons
+                text += `\n   ${line}`;
             }
-            if (files.length > 5) text += `\n   └─ <i>...và ${files.length - 5} file khác</i>`;
+            if (files.length > 8) text += `\n   <i>...và ${files.length - 8} dòng khác</i>`;
         }
     }
 
@@ -275,10 +272,10 @@ async function cmdReport(token, chatId, repo) {
 
     const text = `📑 <b>Report 24h</b>
 
-🔄 Sync hôm nay: ${last24h.length} lần
-📁 Files hôm nay: ${files24h}
-📊 Tổng sync: ${s.totalSyncs || 0}
-📂 Tổng files: ${s.totalFiles || 0}`;
+    🔄 Sync hôm nay: ${last24h.length} lần
+    📁 Files hôm nay: ${files24h}
+    📊 Tổng sync: ${s.totalSyncs || 0}
+    📂 Tổng files: ${s.totalFiles || 0}`;
 
     await sendMessage(token, chatId, text);
 }
@@ -321,11 +318,11 @@ async function cmdSync(token, chatId, repo, ghToken) {
 async function cmdSettings(token, chatId, repo) {
     const text = `⚙️ <b>Settings</b>
 
-⏱️ Interval: ~2 phút (Turbo Mode)
-📤 Mode: Copy 1 chiều
-🔔 Notify: Khi có file mới
+    ⏱️ Interval: ~2 phút (Turbo Mode)
+    📤 Mode: Copy 1 chiều
+    🔔 Notify: Khi có file mới
 
-📝 Sửa: GitHub Secrets`;
+    📝 Sửa: GitHub Secrets`;
 
     const keyboard = {
         inline_keyboard: [[
@@ -338,14 +335,14 @@ async function cmdSettings(token, chatId, repo) {
 async function cmdHelp(token, chatId) {
     const text = `❓ <b>Help</b>
 
-📌 <b>Lệnh:</b>
-/sync - 🔄 Đồng bộ ngay
-/status - 📊 Trạng thái
-/history - 📜 Lịch sử
-/stats - 📈 Thống kê
-/settings - ⚙️ Cài đặt
+    📌 <b>Lệnh:</b>
+    /sync - 🔄 Đồng bộ ngay
+    /status - 📊 Trạng thái
+    /history - 📜 Lịch sử
+    /stats - 📈 Thống kê
+    /settings - ⚙️ Cài đặt
 
-⏰ Auto-sync mỗi ~2 phút (Turbo)`;
+    ⏰ Auto-sync mỗi ~2 phút (Turbo)`;
     await sendMessage(token, chatId, text);
 }
 
