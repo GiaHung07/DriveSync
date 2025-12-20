@@ -39,7 +39,7 @@ jobs:
         run: |
           echo "Starting sync..."
           
-          # Tree builder function
+          # Tree builder function (fixed for subshell issue)
           build_tree() {
             local log_file="$1"
             local src="$2"
@@ -48,8 +48,22 @@ jobs:
             
             echo "📦 $src → $dst:" >> "$output_file"
             
-            # Get file list and create tree
-            grep ": Copied" "$log_file" | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort | while read filepath; do
+            # Extract files to temp array
+            mapfile -t files < <(grep ": Copied" "$log_file" | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort)
+            
+            local count=${#files[@]}
+            local i=0
+            
+            for filepath in "${files[@]}"; do
+              ((i++))
+              
+              # Determine tree prefix
+              if [ $i -eq $count ]; then
+                prefix="└──"
+              else
+                prefix="├──"
+              fi
+              
               # Get icon based on extension
               ext="${filepath##*.}"
               case "${ext,,}" in
@@ -61,7 +75,7 @@ jobs:
                 mp4|avi|mkv|mov|webm) icon="🎬" ;;
                 mp3|wav|flac|ogg) icon="🎵" ;;
                 zip|rar|7z|tar|gz) icon="📦" ;;
-                exe|msi|app) icon="⚙️" ;;
+                exe|msi|app|bat) icon="⚙️" ;;
                 txt|md) icon="📝" ;;
                 c|cpp|py|js|java|html|css) icon="💻" ;;
                 *) icon="📄" ;;
@@ -69,17 +83,12 @@ jobs:
               
               # Check if file has folder prefix
               if [[ "$filepath" == *"/"* ]]; then
-                folder="${filepath%%/*}"
-                filename="${filepath#*/}"
-                echo "├── 📂 $folder/" >> "$output_file"
-                echo "│   └── $icon $filename" >> "$output_file"
+                # Show with folder indicator
+                echo "$prefix 📂 $icon $filepath" >> "$output_file"
               else
-                echo "├── $icon $filepath" >> "$output_file"
+                echo "$prefix $icon $filepath" >> "$output_file"
               fi
             done
-            
-            # Fix last item to use └──
-            sed -i '$ s/├──/└──/' "$output_file"
           }
           
           TOTAL=0
