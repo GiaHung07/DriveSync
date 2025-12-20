@@ -105,9 +105,14 @@ jobs:
             
             rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
             
+            echo "=== DEBUG: Full rclone log ==="
+            cat /tmp/log1.txt | head -50
+            echo "=== DEBUG: Lines with Copied ==="
+            grep -i "copied" /tmp/log1.txt || echo "No 'copied' found"
+            
             C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
             C1=${C1:-0}
-            echo "Pair 1 copied: $C1"
+            echo "Pair 1 copied count: $C1"
             
             if [ "$C1" -gt 0 ]; then
               build_tree "/tmp/log1.txt" "$SRC1" "$DST1" "$FILELIST"
