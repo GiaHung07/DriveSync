@@ -38,11 +38,9 @@ jobs:
           SYNC_PAIRS: ${{ secrets.SYNC_FOLDERS }}
         run: |
           echo "0" > /tmp/filecount.txt
-          echo "0" > /tmp/totalsize.txt
           > /tmp/notify.txt
           
           TOTAL=0
-          TOTALSIZE=0
           
           PAIR1=$(echo "$SYNC_PAIRS" | cut -d',' -f1)
           PAIR2=$(echo "$SYNC_PAIRS" | cut -d',' -f2)
@@ -53,24 +51,21 @@ jobs:
             DST1=$(echo "$PAIR1" | cut -d':' -f2)
             echo "Pair 1: $SRC1 -> $DST1"
             
-            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats 1s 2>&1 | tee /tmp/log1.txt || true
+            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
             
             C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
             echo "Pair 1 copied: $C1"
             
-            # Extract size (e.g., "Transferred: 123.456 MiB")
-            SIZE1=$(grep -oE 'Transferred:[^,]+' /tmp/log1.txt | tail -1 | sed 's/Transferred://' | xargs || echo "0 B")
-            
             if [ "$C1" -gt 0 ]; then
               echo "📦 $SRC1 → $DST1:" >> /tmp/notify.txt
               
-              # Get file list first
+              # Get files and format with icons
               grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 > /tmp/files1.txt
-              FILECOUNT1=$(wc -l < /tmp/files1.txt)
-              CURRENT=0
+              TOTAL1=$(wc -l < /tmp/files1.txt)
+              IDX=0
               
               while IFS= read -r filepath; do
-                ((CURRENT++))
+                ((IDX++))
                 ext="${filepath##*.}"
                 ext="${ext,,}"
                 case "$ext" in
@@ -86,17 +81,16 @@ jobs:
                   *) icon="📄" ;;
                 esac
                 
-                # Last item uses └── 
-                if [ "$CURRENT" -eq "$FILECOUNT1" ]; then
-                  prefix="└──"
+                if [ "$IDX" -eq "$TOTAL1" ]; then
+                  pre="└──"
                 else
-                  prefix="├──"
+                  pre="├──"
                 fi
                 
                 if [[ "$filepath" == *"/"* ]]; then
-                  echo "$prefix 📂 $icon $filepath" >> /tmp/notify.txt
+                  echo "$pre 📂 $icon $filepath" >> /tmp/notify.txt
                 else
-                  echo "$prefix $icon $filepath" >> /tmp/notify.txt
+                  echo "$pre $icon $filepath" >> /tmp/notify.txt
                 fi
               done < /tmp/files1.txt
             fi
@@ -109,23 +103,21 @@ jobs:
             DST2=$(echo "$PAIR2" | cut -d':' -f2)
             echo "Pair 2: $SRC2 -> $DST2"
             
-            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats 1s 2>&1 | tee /tmp/log2.txt || true
+            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log2.txt || true
             
             C2=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
             echo "Pair 2 copied: $C2"
-            
-            SIZE2=$(grep -oE 'Transferred:[^,]+' /tmp/log2.txt | tail -1 | sed 's/Transferred://' | xargs || echo "0 B")
             
             if [ "$C2" -gt 0 ]; then
               echo "" >> /tmp/notify.txt
               echo "📦 $SRC2 → $DST2:" >> /tmp/notify.txt
               
               grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 > /tmp/files2.txt
-              FILECOUNT2=$(wc -l < /tmp/files2.txt)
-              CURRENT=0
+              TOTAL2=$(wc -l < /tmp/files2.txt)
+              IDX=0
               
               while IFS= read -r filepath; do
-                ((CURRENT++))
+                ((IDX++))
                 ext="${filepath##*.}"
                 ext="${ext,,}"
                 case "$ext" in
@@ -141,16 +133,16 @@ jobs:
                   *) icon="📄" ;;
                 esac
                 
-                if [ "$CURRENT" -eq "$FILECOUNT2" ]; then
-                  prefix="└──"
+                if [ "$IDX" -eq "$TOTAL2" ]; then
+                  pre="└──"
                 else
-                  prefix="├──"
+                  pre="├──"
                 fi
                 
                 if [[ "$filepath" == *"/"* ]]; then
-                  echo "$prefix 📂 $icon $filepath" >> /tmp/notify.txt
+                  echo "$pre 📂 $icon $filepath" >> /tmp/notify.txt
                 else
-                  echo "$prefix $icon $filepath" >> /tmp/notify.txt
+                  echo "$pre $icon $filepath" >> /tmp/notify.txt
                 fi
               done < /tmp/files2.txt
             fi
@@ -159,10 +151,6 @@ jobs:
           
           echo "=== TOTAL: $TOTAL ==="
           echo "$TOTAL" > /tmp/filecount.txt
-          
-          # Combine sizes for display
-          echo "${SIZE1:-0 B} + ${SIZE2:-0 B}" > /tmp/totalsize.txt
-          
           cat /tmp/notify.txt
 
       - name: Update state.json
@@ -202,17 +190,10 @@ jobs:
           if [ "$FILES" -gt 0 ]; then
             NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
             DETAILS=$(cat /tmp/notify.txt 2>/dev/null || echo "")
-            SIZE=$(cat /tmp/totalsize.txt 2>/dev/null || echo "")
             
             GREETINGS=("🔔 Có file mới nè sếp ơi!" "🎉 Oni-chan, có file mới!" "📢 Thầy ơi có tài liệu mới!" "🚀 Đại ca, hàng về rồi nè!" "✨ Boss, file mới đã sync!")
             RANDOM_IDX=$((RANDOM % 5))
-            
-            # Build message with size stats
-            MSG="${GREETINGS[$RANDOM_IDX]}"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"
-            if [ -n "$SIZE" ] && [ "$SIZE" != "0 B + 0 B" ] && [ "$SIZE" != " + " ]; then
-              MSG="$MSG | 📊 $SIZE"
-            fi
-            MSG="$MSG"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
+            MSG="${GREETINGS[$RANDOM_IDX]}"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
             
             curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}"
           else
