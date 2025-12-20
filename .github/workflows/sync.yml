@@ -69,13 +69,14 @@ jobs:
               --exclude "*.tmp" --exclude "Thumbs.db" \
               -v --stats-one-line --stats 0 --retries 3 2>&1 | tee "$LOG1" || true
             
-            # Parse rclone log to find copied files
-            # Format: ... : filename: Copied ...
+            # Parse rclone log to find copied files (Pair 1)
             C1=$(grep -c ": Copied" "$LOG1" || true)
             echo "Pair 1: Copied=$C1"
             
             if [ "$C1" -gt 0 ]; then
-              grep ": Copied" "$LOG1" | sed -E 's/.* : (.*): Copied.*/\1/' | head -10 >> "$FILELIST" || true
+              echo "📦 $SRC1 -> $DST1" >> "$FILELIST"
+              grep ": Copied" "$LOG1" | sed -E 's/.* : (.*): Copied.*/  - \1/' | head -10 >> "$FILELIST" || true
+              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -95,7 +96,9 @@ jobs:
             echo "Pair 2: Copied=$C2"
             
             if [ "$C2" -gt 0 ]; then
-              grep ": Copied" "$LOG2" | sed -E 's/.* : (.*): Copied.*/\1/' | head -10 >> "$FILELIST" || true
+              echo "📦 $SRC2 -> $DST2" >> "$FILELIST"
+              grep ": Copied" "$LOG2" | sed -E 's/.* : (.*): Copied.*/  - \1/' | head -10 >> "$FILELIST" || true
+              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C2))
           fi
@@ -103,9 +106,15 @@ jobs:
           echo "TOTAL FILES COPIED: $TOTAL"
           echo "files=$TOTAL" >> $GITHUB_OUTPUT
           
-          # Lưu danh sách file (tối đa 10 file để tránh tin nhắn quá dài)
-          NAMES=$(head -10 "$FILELIST" | tr '\n' '|')
-          echo "filenames=$NAMES" >> $GITHUB_OUTPUT
+          # Prepare content for notification (preserve newlines)
+          if [ -s "$FILELIST" ]; then
+             CONTENT=$(cat "$FILELIST")
+             # Use base64 to safeguard multiline strings in GitHub Actions
+             EncodedContent=$(echo "$CONTENT" | base64 -w 0)
+             echo "filenames=$EncodedContent" >> $GITHUB_OUTPUT
+          else
+             echo "filenames=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Update state.json
         if: always()
@@ -148,40 +157,23 @@ jobs:
           TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
-            exit 0
-          fi
-          
-          FILES="${{ steps.sync.outputs.files }}"
-          FILENAMES="${{ steps.sync.outputs.filenames }}"
-          NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
-          FILES=${FILES:-0}
-          
-          # Gửi thông báo khi có file mới
+          # Chỉ gửi khi có file
           if [ "$FILES" != "0" ] && [ -n "$FILES" ]; then
-            # Simple greetings (No Emojis)
-            GREETINGS=(
-              "Thầy ơi có file mới"
-              "Đại ca ơi, có file mới"
-              "File vừa sync xong báu vật"
-            )
-            GREETING="${GREETINGS[$((RANDOM % ${#GREETINGS[@]}))]}"
-            
-            # Tạo danh sách file (Simple format)
-            FILELIST=""
+            # Decode content
             if [ -n "$FILENAMES" ]; then
-              IFS='|' read -ra NAMES <<< "$FILENAMES"
-              for name in "${NAMES[@]}"; do
-                if [ -n "$name" ]; then
-                  FILELIST="${FILELIST}"$'\n'"- ${name}"
-                fi
-              done
-            fi
+               FILE_CONTENT=$(echo "$FILENAMES" | base64 -d)
+            else
+               FILE_CONTENT=""
             fi
             
-            MESSAGE="${GREETING}"$'\n'"Sync ${FILES} file luc ${NOW}${FILELIST}"
+            MESSAGE="🚀 *Sync Report* "$'\n'"🕒 ${NOW}"$'\n\n'"${FILE_CONTENT}"$'\n'"---"$'\n'"💡 /sync • /status"
             
+            # Send to Telegram
             curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-              --data-urlencode "chat_id=${CHAT_ID}" \
-              --data-urlencode "text=${MESSAGE}"
+              -d chat_id="${CHAT_ID}" \
+              -d text="${MESSAGE}" \
+              -d parse_mode="Markdown"
+          else
+            echo "No files synced. Skipping notification."
           fi
+          # End of script
