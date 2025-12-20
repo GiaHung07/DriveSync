@@ -39,7 +39,7 @@ jobs:
         run: |
           echo "Starting sync..."
           
-          # Tree builder function (fixed for subshell issue)
+          # Simple tree builder (no mapfile, direct output)
           build_tree() {
             local log_file="$1"
             local src="$2"
@@ -48,23 +48,23 @@ jobs:
             
             echo "📦 $src → $dst:" >> "$output_file"
             
-            # Extract files to temp array
-            mapfile -t files < <(grep ": Copied" "$log_file" | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort)
+            # Extract files to temp file first
+            grep ": Copied" "$log_file" 2>/dev/null | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort > /tmp/extracted_files.txt
             
-            local count=${#files[@]}
-            local i=0
+            local total_lines=$(wc -l < /tmp/extracted_files.txt)
+            local current=0
             
-            for filepath in "${files[@]}"; do
-              ((i++))
+            while IFS= read -r filepath; do
+              ((current++))
               
-              # Determine tree prefix
-              if [ $i -eq $count ]; then
+              # Tree prefix
+              if [ "$current" -eq "$total_lines" ]; then
                 prefix="└──"
               else
                 prefix="├──"
               fi
               
-              # Get icon based on extension
+              # Get icon
               ext="${filepath##*.}"
               case "${ext,,}" in
                 pdf) icon="📕" ;;
@@ -81,14 +81,13 @@ jobs:
                 *) icon="📄" ;;
               esac
               
-              # Check if file has folder prefix
+              # Output with folder indicator if has path
               if [[ "$filepath" == *"/"* ]]; then
-                # Show with folder indicator
                 echo "$prefix 📂 $icon $filepath" >> "$output_file"
               else
                 echo "$prefix $icon $filepath" >> "$output_file"
               fi
-            done
+            done < /tmp/extracted_files.txt
           }
           
           TOTAL=0
