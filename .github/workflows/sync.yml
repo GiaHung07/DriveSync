@@ -109,19 +109,15 @@ jobs:
             echo "=== DEBUG: rclone output ==="
             cat /tmp/log1.txt
             
-            # Try multiple patterns to detect copied files
-            C1=0
-            # Pattern 1: ": Copied"
+            # Simplified grep patterns (no Perl regex)
             C1a=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
-            # Pattern 2: "Transferred:" from stats
-            C1b=$(grep -oP 'Transferred:\s+\K[0-9]+' /tmp/log1.txt 2>/dev/null | head -1 || echo "0")
-            # Pattern 3: "(new)" for new files
             C1c=$(grep -c "(new)" /tmp/log1.txt 2>/dev/null || echo "0")
+            C1d=$(grep -c "(server-side copy)" /tmp/log1.txt 2>/dev/null || echo "0")
             
-            echo "DEBUG: Copied=$C1a, Transferred=$C1b, New=$C1c"
+            echo "DEBUG: Copied=$C1a, New=$C1c, ServerSide=$C1d"
             
             # Take max of detected counts
-            C1=$(echo -e "$C1a\n${C1b:-0}\n$C1c" | sort -rn | head -1)
+            C1=$(echo -e "$C1a\n$C1c\n$C1d" | sort -rn | head -1)
             C1=${C1:-0}
             echo "Pair 1 final count: $C1"
             
@@ -139,11 +135,13 @@ jobs:
             
             rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1 | tee /tmp/log2.txt || true
             
-            C2=0
+            # Simplified grep patterns (no Perl regex)
             C2a=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
-            C2b=$(grep -oP 'Transferred:\s+\K[0-9]+' /tmp/log2.txt 2>/dev/null | head -1 || echo "0")
             C2c=$(grep -c "(new)" /tmp/log2.txt 2>/dev/null || echo "0")
-            C2=$(echo -e "$C2a\n${C2b:-0}\n$C2c" | sort -rn | head -1)
+            C2d=$(grep -c "(server-side copy)" /tmp/log2.txt 2>/dev/null || echo "0")
+            
+            # Take max count
+            C2=$(echo -e "$C2a\n$C2c\n$C2d" | sort -rn | head -1)
             C2=${C2:-0}
             echo "Pair 2 final count: $C2"
             
@@ -158,6 +156,9 @@ jobs:
           echo "files=$TOTAL" >> $GITHUB_OUTPUT
           cat "$FILELIST" || true
           cp "$FILELIST" /tmp/notify.txt || true
+          
+          # Always exit 0 to ensure output is captured
+          exit 0
 
       - name: Update state.json
         if: always()
