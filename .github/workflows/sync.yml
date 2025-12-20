@@ -194,26 +194,31 @@ jobs:
           FILES="${{ steps.sync.outputs.files }}"
           FILES=${FILES:-0}
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
-          echo "DEBUG: FILES=$FILES"
+          
+          echo "=== NOTIFICATION DEBUG ==="
+          echo "FILES from output: $FILES"
+          echo "BOT_TOKEN length: ${#BOT_TOKEN}"
+          echo "CHAT_ID: $CHAT_ID"
+          
+          # ALWAYS SEND FOR DEBUG - remove condition temporarily
+          DETAILS=""
+          if [ -f /tmp/notify.txt ]; then
+            DETAILS=$(cat /tmp/notify.txt)
+          fi
+          
+          # Build message
           if [ "$FILES" -gt 0 ]; then
-            echo "Sending notification..."
-            DETAILS=""
-            if [ -f /tmp/notify.txt ]; then
-              DETAILS=$(cat /tmp/notify.txt)
-            fi
-            
-            # Random greetings
-            GREETINGS=("🔔 Có file mới nè sếp ơi!" "🎉 Oni-chan, có file mới!" "📢 Thầy ơi có tài liệu mới!" "🚀 Đại ca, hàng về rồi nè!" "✨ Boss, file mới đã sync!" "🐧 Anh ơi có file nè!" "💼 Sếp ơi, cập nhật mới!" "🎁 Có quà cho sếp nè!")
-            RANDOM_IDX=$((RANDOM % 8))
-            GREETING="${GREETINGS[$RANDOM_IDX]}"
-            
-            MSG="$GREETING"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
-            if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-              RESP=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}")
-              echo "Response: $RESP"
-            else
-              echo "ERROR: Missing secrets!"
-            fi
+            GREETINGS=("🔔 Có file mới nè sếp ơi!" "🎉 Oni-chan, có file mới!" "📢 Thầy ơi có tài liệu mới!" "🚀 Đại ca, hàng về rồi nè!" "✨ Boss, file mới đã sync!")
+            RANDOM_IDX=$((RANDOM % 5))
+            MSG="${GREETINGS[$RANDOM_IDX]}"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
           else
-            echo "FILES=0, skip notification"
+            MSG="⚠️ Sync hoàn tất nhưng 0 file"$'\n'"🕒 $NOW"$'\n'"� Detected: $FILES"$'\n\n'"Có thể file đã sync trước đó hoặc không có file mới."$'\n'"───────────"$'\n'"💡 /sync • /status"
+          fi
+          
+          echo "Sending message..."
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            RESP=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}")
+            echo "Response: $RESP"
+          else
+            echo "ERROR: Missing BOT_TOKEN or CHAT_ID!"
           fi
