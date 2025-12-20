@@ -39,6 +39,49 @@ jobs:
         run: |
           echo "Starting sync..."
           
+          # Tree builder function
+          build_tree() {
+            local log_file="$1"
+            local src="$2"
+            local dst="$3"
+            local output_file="$4"
+            
+            echo "📦 $src → $dst:" >> "$output_file"
+            
+            # Get file list and create tree
+            grep ": Copied" "$log_file" | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort | while read filepath; do
+              # Get icon based on extension
+              ext="${filepath##*.}"
+              case "${ext,,}" in
+                pdf) icon="📕" ;;
+                doc|docx) icon="📘" ;;
+                xls|xlsx) icon="📗" ;;
+                ppt|pptx) icon="📙" ;;
+                jpg|jpeg|png|gif|bmp|webp) icon="🖼️" ;;
+                mp4|avi|mkv|mov|webm) icon="🎬" ;;
+                mp3|wav|flac|ogg) icon="🎵" ;;
+                zip|rar|7z|tar|gz) icon="📦" ;;
+                exe|msi|app) icon="⚙️" ;;
+                txt|md) icon="📝" ;;
+                c|cpp|py|js|java|html|css) icon="💻" ;;
+                *) icon="📄" ;;
+              esac
+              
+              # Check if file has folder prefix
+              if [[ "$filepath" == *"/"* ]]; then
+                folder="${filepath%%/*}"
+                filename="${filepath#*/}"
+                echo "├── 📂 $folder/" >> "$output_file"
+                echo "│   └── $icon $filename" >> "$output_file"
+              else
+                echo "├── $icon $filepath" >> "$output_file"
+              fi
+            done
+            
+            # Fix last item to use └──
+            sed -i '$ s/├──/└──/' "$output_file"
+          }
+          
           TOTAL=0
           FILELIST="/tmp/files.txt"
           > "$FILELIST"
@@ -59,25 +102,7 @@ jobs:
             echo "Pair 1 copied: $C1"
             
             if [ "$C1" -gt 0 ]; then
-              echo "📦 $SRC1 → $DST1:" >> "$FILELIST"
-              # Extract files with smart icons
-              grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -10 | while read fname; do
-                ext="${fname##*.}"
-                case "$ext" in
-                  pdf|PDF) icon="📕" ;;
-                  doc|docx|DOC|DOCX) icon="📘" ;;
-                  xls|xlsx|XLS|XLSX) icon="📗" ;;
-                  ppt|pptx|PPT|PPTX) icon="📙" ;;
-                  jpg|jpeg|png|gif|bmp|JPG|JPEG|PNG|GIF) icon="🖼️" ;;
-                  mp4|avi|mkv|mov|MP4|AVI|MKV) icon="🎬" ;;
-                  mp3|wav|flac|MP3|WAV) icon="🎵" ;;
-                  zip|rar|7z|ZIP|RAR) icon="📦" ;;
-                  exe|msi|EXE|MSI) icon="⚙️" ;;
-                  txt|TXT) icon="📝" ;;
-                  *) icon="📄" ;;
-                esac
-                echo "  $icon $fname" >> "$FILELIST"
-              done
+              build_tree "/tmp/log1.txt" "$SRC1" "$DST1" "$FILELIST"
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -95,24 +120,8 @@ jobs:
             echo "Pair 2 copied: $C2"
             
             if [ "$C2" -gt 0 ]; then
-              echo "📦 $SRC2 → $DST2:" >> "$FILELIST"
-              grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -10 | while read fname; do
-                ext="${fname##*.}"
-                case "$ext" in
-                  pdf|PDF) icon="📕" ;;
-                  doc|docx|DOC|DOCX) icon="📘" ;;
-                  xls|xlsx|XLS|XLSX) icon="📗" ;;
-                  ppt|pptx|PPT|PPTX) icon="📙" ;;
-                  jpg|jpeg|png|gif|bmp|JPG|JPEG|PNG|GIF) icon="🖼️" ;;
-                  mp4|avi|mkv|mov|MP4|AVI|MKV) icon="🎬" ;;
-                  mp3|wav|flac|MP3|WAV) icon="🎵" ;;
-                  zip|rar|7z|ZIP|RAR) icon="📦" ;;
-                  exe|msi|EXE|MSI) icon="⚙️" ;;
-                  txt|TXT) icon="📝" ;;
-                  *) icon="📄" ;;
-                esac
-                echo "  $icon $fname" >> "$FILELIST"
-              done
+              echo "" >> "$FILELIST"
+              build_tree "/tmp/log2.txt" "$SRC2" "$DST2" "$FILELIST"
             fi
             TOTAL=$((TOTAL + C2))
           fi
