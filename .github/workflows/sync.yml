@@ -43,7 +43,6 @@ jobs:
           FILELIST="/tmp/files.txt"
           > "$FILELIST"
           
-          # Parse pairs
           PAIR1=$(echo "$SYNC_PAIRS" | cut -d',' -f1)
           PAIR2=$(echo "$SYNC_PAIRS" | cut -d',' -f2)
           
@@ -53,21 +52,15 @@ jobs:
             DST1=$(echo "$PAIR1" | cut -d':' -f2)
             echo "Pair 1: $SRC1 -> $DST1"
             
-            # Sync với verbose log
-            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" \
-              --exclude "*.tmp" --exclude "Thumbs.db" \
-              -v 2>&1 | tee /tmp/log1.txt || true
+            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
             
-            # Đếm file copied
             C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
             C1=${C1:-0}
             echo "Pair 1 copied: $C1"
             
             if [ "$C1" -gt 0 ]; then
               echo "📦 $SRC1 → $DST1:" >> "$FILELIST"
-              # Extract file names: "INFO  : path/to/file.ext: Copied (new)"
               grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -10 >> "$FILELIST"
-              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -78,9 +71,7 @@ jobs:
             DST2=$(echo "$PAIR2" | cut -d':' -f2)
             echo "Pair 2: $SRC2 -> $DST2"
             
-            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" \
-              --exclude "*.tmp" --exclude "Thumbs.db" \
-              -v 2>&1 | tee /tmp/log2.txt || true
+            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log2.txt || true
             
             C2=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
             C2=${C2:-0}
@@ -89,15 +80,12 @@ jobs:
             if [ "$C2" -gt 0 ]; then
               echo "📦 $SRC2 → $DST2:" >> "$FILELIST"
               grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -10 >> "$FILELIST"
-              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C2))
           fi
           
           echo "=== TOTAL: $TOTAL files ==="
           echo "files=$TOTAL" >> $GITHUB_OUTPUT
-          
-          # Save file list
           cat "$FILELIST" || true
           cp "$FILELIST" /tmp/notify.txt || true
 
@@ -107,19 +95,15 @@ jobs:
           FILES="${{ steps.sync.outputs.files }}"
           FILES=${FILES:-0}
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%Y-%m-%d %H:%M:%S')
-          
-          echo "Updating state: $FILES files at $NOW"
-          
-          # Create if not exists
+          DETAILS=""
+          if [ -f /tmp/notify.txt ]; then
+            DETAILS=$(cat /tmp/notify.txt | tr '\n' '|' | head -c 500)
+          fi
+          echo "Updating state: $FILES files"
           if [ ! -f state.json ]; then
             echo '{"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}' > state.json
           fi
-          
-          # Update with jq
-          jq --arg now "$NOW" --argjson files "$FILES" \
-             '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | .history = ([{"time": $now, "files": $files}] + .history)[:50]' \
-             state.json > tmp.json && mv tmp.json state.json
-          
+          jq --arg now "$NOW" --argjson files "$FILES" --arg details "$DETAILS" '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | .history = ([{"time": $now, "files": $files, "details": $details}] + .history)[:50]' state.json > tmp.json && mv tmp.json state.json
           cat state.json
 
       - name: Commit state
@@ -140,30 +124,20 @@ jobs:
           FILES="${{ steps.sync.outputs.files }}"
           FILES=${FILES:-0}
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
-          
-          echo "Files synced: $FILES"
-          
-          # CHỈ GỬI KHI CÓ FILE MỚI
+          echo "DEBUG: FILES=$FILES, BOT_TOKEN_LEN=${#BOT_TOKEN}, CHAT_ID=$CHAT_ID"
           if [ "$FILES" -gt 0 ]; then
-            # Build message
+            echo "Sending notification..."
             DETAILS=""
             if [ -f /tmp/notify.txt ]; then
-              DETAILS=$(cat /tmp/notify.txt | head -20)
+              DETAILS=$(cat /tmp/notify.txt)
             fi
-            
-            # Use printf for multiline
-            MSG=$(printf "🔔 *Có file mới nè sếp ơi!*\n🕒 %s\n📁 %s file(s)\n\n%s\n---\n💡 /sync • /status" "$NOW" "$FILES" "$DETAILS")
-            
-            # Send to Telegram
+            MSG="🔔 Có file mới nè sếp ơi!"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"~~~"$'\n'"💡 /sync • /status"
             if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-                -d "chat_id=${CHAT_ID}" \
-                -d "text=${MSG}" \
-                -d "parse_mode=Markdown"
-              echo "Notification sent!"
+              RESP=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}")
+              echo "Response: $RESP"
             else
-              echo "Missing BOT_TOKEN or CHAT_ID!"
+              echo "ERROR: Missing secrets!"
             fi
           else
-            echo "No new files. Skipping notification."
+            echo "FILES=0, skip notification"
           fi
