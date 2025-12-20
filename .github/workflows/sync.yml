@@ -103,16 +103,27 @@ jobs:
             DST1=$(echo "$PAIR1" | cut -d':' -f2)
             echo "Pair 1: $SRC1 -> $DST1"
             
-            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
+            # Use --stats-one-line for better parsing
+            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1 | tee /tmp/log1.txt || true
             
-            echo "=== DEBUG: Full rclone log ==="
-            cat /tmp/log1.txt | head -50
-            echo "=== DEBUG: Lines with Copied ==="
-            grep -i "copied" /tmp/log1.txt || echo "No 'copied' found"
+            echo "=== DEBUG: rclone output ==="
+            cat /tmp/log1.txt
             
-            C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
+            # Try multiple patterns to detect copied files
+            C1=0
+            # Pattern 1: ": Copied"
+            C1a=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
+            # Pattern 2: "Transferred:" from stats
+            C1b=$(grep -oP 'Transferred:\s+\K[0-9]+' /tmp/log1.txt 2>/dev/null | head -1 || echo "0")
+            # Pattern 3: "(new)" for new files
+            C1c=$(grep -c "(new)" /tmp/log1.txt 2>/dev/null || echo "0")
+            
+            echo "DEBUG: Copied=$C1a, Transferred=$C1b, New=$C1c"
+            
+            # Take max of detected counts
+            C1=$(echo -e "$C1a\n${C1b:-0}\n$C1c" | sort -rn | head -1)
             C1=${C1:-0}
-            echo "Pair 1 copied count: $C1"
+            echo "Pair 1 final count: $C1"
             
             if [ "$C1" -gt 0 ]; then
               build_tree "/tmp/log1.txt" "$SRC1" "$DST1" "$FILELIST"
@@ -126,11 +137,15 @@ jobs:
             DST2=$(echo "$PAIR2" | cut -d':' -f2)
             echo "Pair 2: $SRC2 -> $DST2"
             
-            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log2.txt || true
+            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1 | tee /tmp/log2.txt || true
             
-            C2=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
+            C2=0
+            C2a=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
+            C2b=$(grep -oP 'Transferred:\s+\K[0-9]+' /tmp/log2.txt 2>/dev/null | head -1 || echo "0")
+            C2c=$(grep -c "(new)" /tmp/log2.txt 2>/dev/null || echo "0")
+            C2=$(echo -e "$C2a\n${C2b:-0}\n$C2c" | sort -rn | head -1)
             C2=${C2:-0}
-            echo "Pair 2 copied: $C2"
+            echo "Pair 2 final count: $C2"
             
             if [ "$C2" -gt 0 ]; then
               echo "" >> "$FILELIST"
