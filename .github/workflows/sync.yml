@@ -173,7 +173,9 @@ jobs:
             
             MSG="${GREETINGS[$RANDOM_IDX]}"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
             
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}"
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=${MSG}"
           else
             echo "No files, skip notification"
           fi
