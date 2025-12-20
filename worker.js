@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════
 // 🤖 DRIVE SYNC BOT - Admin Dashboard
 // Professional Telegram Bot for Google Drive Synchronization
 // ═══════════════════════════════════════════════════════════════
@@ -35,26 +35,94 @@ async function answerCallback(token, callbackId) {
 // ═══════════════════════════════════════════════════════════════
 
 async function getState(repo) {
-    try {
-        const url = `https://raw.githubusercontent.com/${repo}/main/state.json?t=${Date.now()}`;
-        const res = await fetch(url);
-        if (res.ok) return await res.json();
-    } catch (e) { }
-    return { stats: { totalSyncs: 0, totalFiles: 0, lastSync: '' }, history: [] };
+    // List of repos to aggregate stats from
+    const repos = [
+        'GiaHung07/DriveSync',
+        'PGHungg/DriveSync'
+    ];
+
+    let totalSyncs = 0;
+    let totalFiles = 0;
+    let allHistory = [];
+    let lastSyncTime = '';
+
+    for (const r of repos) {
+        try {
+            // Add cache busting
+            const url = `https://raw.githubusercontent.com/${r}/main/state.json?t=${Date.now()}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                // Aggregate Stats
+                totalSyncs += (data.stats.totalSyncs || 0);
+                totalFiles += (data.stats.totalFiles || 0);
+
+                // Track latest sync time
+                if (data.stats.lastSync > lastSyncTime) {
+                    lastSyncTime = data.stats.lastSync;
+                }
+
+                // Collect history
+                if (Array.isArray(data.history)) {
+                    allHistory = allHistory.concat(data.history);
+                }
+            }
+        } catch (e) {
+            console.error(`Error fetching state from ${r}:`, e);
+        }
+    }
+
+    // Sort history by time (newest first)
+    allHistory.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    return {
+        stats: {
+            totalSyncs: totalSyncs,
+            totalFiles: totalFiles,
+            lastSync: lastSyncTime
+        },
+        history: allHistory
+    };
 }
 
-async function triggerSync(repo, token) {
-    if (!token) return false;
-    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/sync.yml/dispatches`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref: 'main' })
-    });
-    return res.ok;
+async function triggerSync(repo, token, branch = 'main') {
+    if (!token) return { ok: false, error: 'No Token' };
+
+    // Helper to send request
+    const send = async (ref) => {
+        return await fetch(`https://api.github.com/repos/${repo}/actions/workflows/sync.yml/dispatches`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'Cloudflare-Worker'
+            },
+            body: JSON.stringify({ ref })
+        });
+    };
+
+    let res = await send(branch);
+
+    // If 422 (Unprocessable Entity) -> Likely wrong branch, try 'master'
+    if (res.status === 422 && branch === 'main') {
+        console.log(`Trigger on 'main' failed (422), retrying with 'master'...`);
+        res = await send('master');
+    }
+
+    if (!res.ok) {
+        const text = await res.text();
+        console.error(`Sync failed on ${repo}: ${res.status} - ${text}`);
+
+        if (res.status === 403) {
+            return { ok: false, error: '⚠️ 403 Forbidden: Token thiếu quyền! (Cần tick "repo" hoặc "workflow")' };
+        }
+        if (res.status === 404) {
+            return { ok: false, error: '⚠️ 404 Not Found: Sai tên Repo hoặc chưa có file sync.yml' };
+        }
+
+        return { ok: false, error: `${res.status} - ${text}` };
+    }
+    return { ok: true };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -152,17 +220,44 @@ async function cmdHistory(token, chatId, repo) {
     const state = await getState(repo);
     const history = state.history || [];
 
-    let list = '📭 Chưa có lịch sử';
-    if (history.length > 0) {
-        list = history.slice(0, 10).map(h => {
-            const icon = h.files > 0 ? '✅' : '⚪';
-            return `${icon} ${h.time} - ${h.files || 0} files`;
-        }).join('\n');
+    if (history.length === 0) {
+        await sendMessage(token, chatId, '📭 Chưa có lịch sử');
+        return;
     }
 
-    const text = `📜 <b>History</b>
+    // Header
+    let text = `📜 <b>Lịch sử Sync (10 gần nhất)</b>\n`;
 
-${list}`;
+    // Take last 5 events
+    const recent = history.slice(0, 5);
+
+    for (const h of recent) {
+        const icon = h.files > 0 ? '✅' : '⚪';
+        const fileCount = h.files > 0 ? `(${h.files} files)` : '';
+
+        text += `\n${icon} <b>${h.time.split(' ')[1]}</b> ${fileCount}`;
+
+        // Show file details if available
+        if (h.files > 0 && h.details) {
+            const files = h.details.trim().split('\n');
+            // Limit to 3 files per event to save space, or 10 if it's the very latest
+            const displayFiles = files.slice(0, 5);
+
+            for (const f of displayFiles) {
+                // Formatting: Remove box header if exist, just show filenames
+                let cleanName = f.replace(/�.*->.*/, '').replace('- ', '').trim();
+                // If line was just a header "📦...", keep it bold
+                if (f.includes('📦')) {
+                    text += `\n   └─ <b>${f}</b>`;
+                } else if (cleanName) {
+                    text += `\n   └─ 📄 ${cleanName}`;
+                }
+            }
+            if (files.length > 5) text += `\n   └─ <i>...và ${files.length - 5} file khác</i>`;
+        }
+    }
+
+    text += `\n\n💡 <i>Chi tiết xem tại /dashboard</i>`;
 
     await sendMessage(token, chatId, text);
 }
@@ -190,18 +285,43 @@ async function cmdReport(token, chatId, repo) {
 
 async function cmdSync(token, chatId, repo, ghToken) {
     if (!ghToken) {
-        await sendMessage(token, chatId, '⚠️ Cần GITHUB_TOKEN để trigger.');
+        await sendMessage(token, chatId, '⚠️ LỖI: Chưa cài GITHUB_TOKEN trong Cloudflare!');
         return;
     }
-    await sendMessage(token, chatId, '⏳ Đang trigger sync...');
-    const ok = await triggerSync(repo, ghToken);
-    await sendMessage(token, chatId, ok ? '✅ Đã trigger! Chờ 30-60s.' : '❌ Lỗi. Check token.');
+    await sendMessage(token, chatId, '⏳ Đang thử trigger sync...');
+
+    const repos = [
+        'GiaHung07/DriveSync',
+        'PGHungg/DriveSync'
+    ];
+
+    // Sort random
+    const shuffled = repos.sort(() => Math.random() - 0.5);
+    let lastError = '';
+
+    for (const r of shuffled) {
+        try {
+            const result = await triggerSync(r, ghToken);
+            if (result.ok) {
+                await sendMessage(token, chatId, `✅ Đã trigger thành công trên server: ${r.split('/')[0]}!`);
+                return;
+            } else {
+                console.log(`Manual Sync: Failed on ${r}, trying next...`);
+                lastError = result.error;
+            }
+        } catch (e) {
+            console.error(e);
+            lastError = e.message;
+        }
+    }
+
+    await sendMessage(token, chatId, `❌ Lỗi: Không thể trigger cả 2 server.\nCode: ${lastError}\n\n👉 Kiểm tra lại GITHUB_TOKEN trong Cloudflare / Check tên nhánh (main/master)!`);
 }
 
 async function cmdSettings(token, chatId, repo) {
     const text = `⚙️ <b>Settings</b>
 
-⏱️ Interval: 10 phút
+⏱️ Interval: ~2 phút (Turbo Mode)
 📤 Mode: Copy 1 chiều
 🔔 Notify: Khi có file mới
 
@@ -225,12 +345,12 @@ async function cmdHelp(token, chatId) {
 /stats - 📈 Thống kê
 /settings - ⚙️ Cài đặt
 
-⏰ Auto-sync mỗi 10 phút`;
+⏰ Auto-sync mỗi ~2 phút (Turbo)`;
     await sendMessage(token, chatId, text);
 }
 
 // ═══════════════════════════════════════════════════════════════
-// � GOOGLE DRIVE WEBHOOK
+// 🚀 GOOGLE DRIVE WEBHOOK
 // ═══════════════════════════════════════════════════════════════
 
 async function getAccessToken(env) {
@@ -270,7 +390,7 @@ async function setupDriveWatch(env, folderId, webhookUrl) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// �🚀 MAIN HANDLER
+// 🚀 MAIN HANDLER
 // ═══════════════════════════════════════════════════════════════
 
 export default {
@@ -370,9 +490,8 @@ export default {
 
     // Cron Trigger: Auto sync mỗi 2 phút (Turbo Mode)
     async scheduled(event, env, ctx) {
-        // Load Balancing với Smart Failover
-        // 1. Randomize thứ tự để chia tải
-        let repos = [
+        // Load Balancing: Chọn ngẫu nhiên 1 trong 2 repo
+        const repos = [
             env.GITHUB_REPO || 'GiaHung07/DriveSync',
             'PGHungg/DriveSync'
         ];

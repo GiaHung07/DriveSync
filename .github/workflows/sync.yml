@@ -130,13 +130,22 @@ jobs:
           {"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}
           EOF
           
+          # Read file details if available
+          if [ -s /tmp/files.txt ]; then
+            DETAILS=$(cat /tmp/files.txt | head -c 500) # Limit size
+          else
+            DETAILS=""
+          fi
+          
           # Hoặc update existing
           if [ -f state.json ]; then
-            jq --arg now "$NOW" --argjson files "$FILES" \
+            jq --arg now "$NOW" \
+               --argjson files "$FILES" \
+               --arg details "$DETAILS" \
                '.stats.totalSyncs = (.stats.totalSyncs // 0) + 1 | 
                 .stats.totalFiles = (.stats.totalFiles // 0) + $files | 
                 .stats.lastSync = $now | 
-                .history = ([{"time": $now, "files": $files}] + (.history // [])) | 
+                .history = ([{"time": $now, "files": $files, "details": $details}] + (.history // [])) | 
                 .history = .history[:50]' state.json > tmp.json && mv tmp.json state.json
           fi
           
