@@ -39,60 +39,11 @@ jobs:
         run: |
           echo "Starting sync..."
           
-          # Simple tree builder (no mapfile, direct output)
-          build_tree() {
-            local log_file="$1"
-            local src="$2"
-            local dst="$3"
-            local output_file="$4"
-            
-            echo "📦 $src → $dst:" >> "$output_file"
-            
-            # Extract files to temp file first
-            grep ": Copied" "$log_file" 2>/dev/null | sed -E 's/.*INFO *: *(.+): Copied.*/\1/' | head -15 | sort > /tmp/extracted_files.txt
-            
-            local total_lines=$(wc -l < /tmp/extracted_files.txt)
-            local current=0
-            
-            while IFS= read -r filepath; do
-              ((current++))
-              
-              # Tree prefix
-              if [ "$current" -eq "$total_lines" ]; then
-                prefix="└──"
-              else
-                prefix="├──"
-              fi
-              
-              # Get icon
-              ext="${filepath##*.}"
-              case "${ext,,}" in
-                pdf) icon="📕" ;;
-                doc|docx) icon="📘" ;;
-                xls|xlsx) icon="📗" ;;
-                ppt|pptx) icon="📙" ;;
-                jpg|jpeg|png|gif|bmp|webp) icon="🖼️" ;;
-                mp4|avi|mkv|mov|webm) icon="🎬" ;;
-                mp3|wav|flac|ogg) icon="🎵" ;;
-                zip|rar|7z|tar|gz) icon="📦" ;;
-                exe|msi|app|bat) icon="⚙️" ;;
-                txt|md) icon="📝" ;;
-                c|cpp|py|js|java|html|css) icon="💻" ;;
-                *) icon="📄" ;;
-              esac
-              
-              # Output with folder indicator if has path
-              if [[ "$filepath" == *"/"* ]]; then
-                echo "$prefix 📂 $icon $filepath" >> "$output_file"
-              else
-                echo "$prefix $icon $filepath" >> "$output_file"
-              fi
-            done < /tmp/extracted_files.txt
-          }
+          # Initialize counters file (RELIABLE - read directly by other steps)
+          echo "0" > /tmp/filecount.txt
+          > /tmp/notify.txt
           
           TOTAL=0
-          FILELIST="/tmp/files.txt"
-          > "$FILELIST"
           
           PAIR1=$(echo "$SYNC_PAIRS" | cut -d',' -f1)
           PAIR2=$(echo "$SYNC_PAIRS" | cut -d',' -f2)
@@ -103,26 +54,18 @@ jobs:
             DST1=$(echo "$PAIR1" | cut -d':' -f2)
             echo "Pair 1: $SRC1 -> $DST1"
             
-            # Use --stats-one-line for better parsing
-            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1 | tee /tmp/log1.txt || true
+            rclone copy "gdrive:${SRC1}" "gdrive:${DST1}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log1.txt || true
             
-            echo "=== DEBUG: rclone output ==="
+            echo "=== Pair 1 log ==="
             cat /tmp/log1.txt
             
-            # Simplified grep patterns (no Perl regex)
-            C1a=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
-            C1c=$(grep -c "(new)" /tmp/log1.txt 2>/dev/null || echo "0")
-            C1d=$(grep -c "(server-side copy)" /tmp/log1.txt 2>/dev/null || echo "0")
-            
-            echo "DEBUG: Copied=$C1a, New=$C1c, ServerSide=$C1d"
-            
-            # Take max of detected counts
-            C1=$(echo -e "$C1a\n$C1c\n$C1d" | sort -rn | head -1)
-            C1=${C1:-0}
-            echo "Pair 1 final count: $C1"
+            # Count files - all possible patterns
+            C1=$(grep -c ": Copied" /tmp/log1.txt 2>/dev/null || echo "0")
+            echo "Pair 1 copied: $C1"
             
             if [ "$C1" -gt 0 ]; then
-              build_tree "/tmp/log1.txt" "$SRC1" "$DST1" "$FILELIST"
+              echo "📦 $SRC1 → $DST1:" >> /tmp/notify.txt
+              grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -15 >> /tmp/notify.txt
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -133,48 +76,57 @@ jobs:
             DST2=$(echo "$PAIR2" | cut -d':' -f2)
             echo "Pair 2: $SRC2 -> $DST2"
             
-            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v --stats-one-line 2>&1 | tee /tmp/log2.txt || true
+            rclone copy "gdrive:${SRC2}" "gdrive:${DST2}" --exclude "*.tmp" --exclude "Thumbs.db" -v 2>&1 | tee /tmp/log2.txt || true
             
-            # Simplified grep patterns (no Perl regex)
-            C2a=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
-            C2c=$(grep -c "(new)" /tmp/log2.txt 2>/dev/null || echo "0")
-            C2d=$(grep -c "(server-side copy)" /tmp/log2.txt 2>/dev/null || echo "0")
+            echo "=== Pair 2 log ==="
+            cat /tmp/log2.txt
             
-            # Take max count
-            C2=$(echo -e "$C2a\n$C2c\n$C2d" | sort -rn | head -1)
-            C2=${C2:-0}
-            echo "Pair 2 final count: $C2"
+            C2=$(grep -c ": Copied" /tmp/log2.txt 2>/dev/null || echo "0")
+            echo "Pair 2 copied: $C2"
             
             if [ "$C2" -gt 0 ]; then
-              echo "" >> "$FILELIST"
-              build_tree "/tmp/log2.txt" "$SRC2" "$DST2" "$FILELIST"
+              echo "" >> /tmp/notify.txt
+              echo "📦 $SRC2 → $DST2:" >> /tmp/notify.txt
+              grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -15 >> /tmp/notify.txt
             fi
             TOTAL=$((TOTAL + C2))
           fi
           
           echo "=== TOTAL: $TOTAL files ==="
-          echo "files=$TOTAL" >> $GITHUB_OUTPUT
-          cat "$FILELIST" || true
-          cp "$FILELIST" /tmp/notify.txt || true
           
-          # Always exit 0 to ensure output is captured
-          exit 0
+          # CRITICAL: Save to file for reliable reading
+          echo "$TOTAL" > /tmp/filecount.txt
+          echo "Saved to /tmp/filecount.txt: $(cat /tmp/filecount.txt)"
+          
+          # Also try step output
+          echo "files=$TOTAL" >> $GITHUB_OUTPUT
 
       - name: Update state.json
         if: always()
         run: |
-          FILES="${{ steps.sync.outputs.files }}"
+          # Read from file (RELIABLE)
+          FILES=0
+          if [ -f /tmp/filecount.txt ]; then
+            FILES=$(cat /tmp/filecount.txt)
+          fi
           FILES=${FILES:-0}
+          
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%Y-%m-%d %H:%M:%S')
           DETAILS=""
           if [ -f /tmp/notify.txt ]; then
             DETAILS=$(cat /tmp/notify.txt | tr '\n' '|' | head -c 500)
           fi
+          
           echo "Updating state: $FILES files"
+          
           if [ ! -f state.json ]; then
             echo '{"stats":{"totalSyncs":0,"totalFiles":0,"lastSync":""},"history":[]}' > state.json
           fi
-          jq --arg now "$NOW" --argjson files "$FILES" --arg details "$DETAILS" '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | .history = ([{"time": $now, "files": $files, "details": $details}] + .history)[:50]' state.json > tmp.json && mv tmp.json state.json
+          
+          jq --arg now "$NOW" --argjson files "$FILES" --arg details "$DETAILS" \
+            '.stats.totalSyncs += 1 | .stats.totalFiles += $files | .stats.lastSync = $now | .history = ([{"time": $now, "files": $files, "details": $details}] + .history)[:50]' \
+            state.json > tmp.json && mv tmp.json state.json
+          
           cat state.json
 
       - name: Commit state
@@ -192,16 +144,23 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          FILES="${{ steps.sync.outputs.files }}"
+          # Read from file (RELIABLE) - not step output
+          FILES=0
+          if [ -f /tmp/filecount.txt ]; then
+            FILES=$(cat /tmp/filecount.txt)
+            echo "Read from file: $FILES"
+          else
+            echo "File /tmp/filecount.txt NOT FOUND!"
+          fi
           FILES=${FILES:-0}
+          
           NOW=$(TZ='Asia/Ho_Chi_Minh' date '+%H:%M:%S')
           
-          echo "=== NOTIFICATION DEBUG ==="
-          echo "FILES from output: $FILES"
+          echo "=== NOTIFICATION ==="
+          echo "FILES: $FILES"
           echo "BOT_TOKEN length: ${#BOT_TOKEN}"
           echo "CHAT_ID: $CHAT_ID"
           
-          # ALWAYS SEND FOR DEBUG - remove condition temporarily
           DETAILS=""
           if [ -f /tmp/notify.txt ]; then
             DETAILS=$(cat /tmp/notify.txt)
@@ -213,10 +172,10 @@ jobs:
             RANDOM_IDX=$((RANDOM % 5))
             MSG="${GREETINGS[$RANDOM_IDX]}"$'\n'"🕒 $NOW"$'\n'"📁 $FILES file(s)"$'\n\n'"$DETAILS"$'\n'"───────────"$'\n'"💡 /sync • /status"
           else
-            MSG="⚠️ Sync hoàn tất nhưng 0 file"$'\n'"🕒 $NOW"$'\n'"� Detected: $FILES"$'\n\n'"Có thể file đã sync trước đó hoặc không có file mới."$'\n'"───────────"$'\n'"💡 /sync • /status"
+            MSG="⚠️ Sync hoàn tất - 0 file mới"$'\n'"🕒 $NOW"$'\n\n'"Không có file mới để sync."$'\n'"───────────"$'\n'"💡 /sync • /status"
           fi
           
-          echo "Sending message..."
+          echo "Sending..."
           if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
             RESP=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" -d "text=${MSG}")
             echo "Response: $RESP"
