@@ -64,8 +64,10 @@ jobs:
             echo "Pair 1 copied: $C1"
             
             if [ "$C1" -gt 0 ]; then
-              echo "📦 $SRC1 -> $DST1" >> "$FILELIST"
-              grep ": Copied" /tmp/log1.txt | sed 's/.*: Copied.*//' | sed 's/.*INFO  : /  - /' | head -5 >> "$FILELIST"
+              echo "📦 $SRC1 → $DST1:" >> "$FILELIST"
+              # Extract file names: "INFO  : path/to/file.ext: Copied (new)"
+              grep ": Copied" /tmp/log1.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -10 >> "$FILELIST"
+              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C1))
           fi
@@ -85,8 +87,9 @@ jobs:
             echo "Pair 2 copied: $C2"
             
             if [ "$C2" -gt 0 ]; then
-              echo "📦 $SRC2 -> $DST2" >> "$FILELIST"
-              grep ": Copied" /tmp/log2.txt | sed 's/.*: Copied.*//' | sed 's/.*INFO  : /  - /' | head -5 >> "$FILELIST"
+              echo "📦 $SRC2 → $DST2:" >> "$FILELIST"
+              grep ": Copied" /tmp/log2.txt | sed -E 's/.*INFO *: *(.+): Copied.*/  📄 \1/' | head -10 >> "$FILELIST"
+              echo "" >> "$FILELIST"
             fi
             TOTAL=$((TOTAL + C2))
           fi
