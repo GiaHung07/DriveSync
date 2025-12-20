@@ -368,14 +368,22 @@ export default {
         return new Response('OK', { status: 200 });
     },
 
-    // Cron Trigger: Auto sync mỗi phút
+    // Cron Trigger: Auto sync mỗi 2 phút (Turbo Mode)
     async scheduled(event, env, ctx) {
-        const REPO = env.GITHUB_REPO || 'PGHungg/DriveSync';
+        // Load Balancing: Chọn ngẫu nhiên 1 trong 2 repo
+        const repos = [
+            env.GITHUB_REPO || 'GiaHung07/DriveSync',
+            'PGHungg/DriveSync'
+        ];
+        // Lọc bỏ trùng lặp nếu env.GITHUB_REPO là PGHungg/DriveSync
+        const uniqueRepos = [...new Set(repos)];
+
+        const randomRepo = uniqueRepos[Math.floor(Math.random() * uniqueRepos.length)];
         const GH_TOKEN = env.GITHUB_TOKEN;
 
         if (GH_TOKEN) {
-            const ok = await triggerSync(REPO, GH_TOKEN);
-            console.log(`Cron sync triggered: ${ok ? 'success' : 'failed'}`);
+            const ok = await triggerSync(randomRepo, GH_TOKEN);
+            console.log(`Turbo Sync: Triggered ${randomRepo} - ${ok ? 'Success' : 'Failed'}`);
         }
     }
 };
