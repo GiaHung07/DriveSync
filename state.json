@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 63,
+    "totalSyncs": 64,
     "totalFiles": 23,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-21 19:32:29"
+    "lastSync": "2025-12-21 20:08:23"
   },
   "history": [
+    {
+      "time": "2025-12-21 20:08:23",
+      "files": 0,
+      "details": ""
+    },
     {
       "time": "2025-12-21 19:32:29",
       "files": 0,
@@ -252,11 +257,6 @@
       "time": "2025-12-21 02:28:19",
       "files": 0,
       "details": ""
-    },
-    {
-      "time": "2025-12-21 02:14:23",
-      "files": 4,
-      "details": "📦 01 → 02:|├── 📂 ⚙️ aaaa/cute.bat|├── 📂 🖼️ bbbb/Bocchi Christmas.jpg|├── 📂 ⚙️ aaaa/hihi/calculator.exe|├── 📂 🖼️ aaaa/hihi/Logo_PTIT.png|"
     }
   ]
 }
