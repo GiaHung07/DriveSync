@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 87,
+    "totalSyncs": 88,
     "totalFiles": 23,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-22 02:40:57"
+    "lastSync": "2025-12-22 02:54:47"
   },
   "history": [
+    {
+      "time": "2025-12-22 02:54:47",
+      "files": 0,
+      "details": ""
+    },
     {
       "time": "2025-12-22 02:40:57",
       "files": 0,
@@ -252,11 +257,6 @@
       "time": "2025-12-21 12:01:34",
       "files": 0,
       "details": ""
-    },
-    {
-      "time": "2025-12-21 11:47:53",
-      "files": 1,
-      "details": "|📦 C++ T10 2025 → C++:|├── 📂 🎬 VIDEO BÀI HỌC/B22.mp4|"
     }
   ]
 }
