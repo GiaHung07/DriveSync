@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 176,
+    "totalSyncs": 177,
     "totalFiles": 29,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-23 15:52:13"
+    "lastSync": "2025-12-23 16:22:03"
   },
   "history": [
+    {
+      "time": "2025-12-23 16:22:03",
+      "files": 0,
+      "details": ""
+    },
     {
       "time": "2025-12-23 15:52:13",
       "files": 0,
@@ -252,11 +257,6 @@
       "time": "2025-12-22 19:36:11",
       "files": 3,
       "details": "|📦 C++ T10 2025 → C++:|├── 📂 📕 SLIDE/KẾ THỪA - ĐA HÌNH.pdf|├── 📂 📕 SLIDE/OOP1.pdf|├── 📂 📗 VIDEO BÀI HỌC/NỘI DUNG BÀI HỌC.xlsx|"
-    },
-    {
-      "time": "2025-12-22 18:55:12",
-      "files": 0,
-      "details": ""
     }
   ]
 }
