@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 179,
+    "totalSyncs": 180,
     "totalFiles": 29,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-23 16:56:53"
+    "lastSync": "2025-12-23 17:23:38"
   },
   "history": [
+    {
+      "time": "2025-12-23 17:23:38",
+      "files": 0,
+      "details": ""
+    },
     {
       "time": "2025-12-23 16:56:53",
       "files": 0,
@@ -250,11 +255,6 @@
     },
     {
       "time": "2025-12-22 21:18:14",
-      "files": 1,
-      "details": "|📦 C++ T10 2025 → C++:|├── 📂 📗 VIDEO BÀI HỌC/NỘI DUNG BÀI HỌC.xlsx|"
-    },
-    {
-      "time": "2025-12-22 20:51:17",
       "files": 1,
       "details": "|📦 C++ T10 2025 → C++:|├── 📂 📗 VIDEO BÀI HỌC/NỘI DUNG BÀI HỌC.xlsx|"
     }
