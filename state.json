@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 439,
-    "totalFiles": 33,
+    "totalSyncs": 440,
+    "totalFiles": 35,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2025-12-27 20:59:02"
+    "lastSync": "2025-12-27 21:23:58"
   },
   "history": [
+    {
+      "time": "2025-12-27 21:23:58",
+      "files": 2,
+      "details": "|📦 C++ T10 2025 → C++:|├── 📂 🎬 VIDEO TRỢ GIẢNG BÌNH/cpp-t10-Buổi 18.mp4|├── 📂 📗 VIDEO TRỢ GIẢNG BÌNH/Nôi dung buổi học.xlsx|"
+    },
     {
       "time": "2025-12-27 20:59:02",
       "files": 0,
@@ -250,11 +255,6 @@
     },
     {
       "time": "2025-12-27 02:41:25",
-      "files": 0,
-      "details": ""
-    },
-    {
-      "time": "2025-12-27 02:29:53",
       "files": 0,
       "details": ""
     }
