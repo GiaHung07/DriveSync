@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 783,
-    "totalFiles": 35,
+    "totalSyncs": 784,
+    "totalFiles": 37,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2026-01-02 14:01:17"
+    "lastSync": "2026-01-02 14:33:49"
   },
   "history": [
+    {
+      "time": "2026-01-02 14:33:49",
+      "files": 2,
+      "details": "|📦 C++ T10 2025 → C++:|├── 📂 🎬 VIDEO TRỢ GIẢNG BÌNH/OOP/cpp-t10-Buổi 19_v1.mp4|├── 📂 🎬 VIDEO TRỢ GIẢNG BÌNH/OOP/cpp-t10-Buổi 19_v2.mp4|"
+    },
     {
       "time": "2026-01-02 14:01:17",
       "files": 0,
@@ -250,11 +255,6 @@
     },
     {
       "time": "2026-01-01 18:32:28",
-      "files": 0,
-      "details": ""
-    },
-    {
-      "time": "2026-01-01 18:17:34",
       "files": 0,
       "details": ""
     }
