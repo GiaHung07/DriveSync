@@ -1,13 +1,18 @@
 {
   "stats": {
-    "totalSyncs": 1696,
+    "totalSyncs": 1697,
     "totalFiles": 37,
     "totalBytes": 0,
     "success": 0,
     "fail": 0,
-    "lastSync": "2026-01-18 12:50:58"
+    "lastSync": "2026-01-18 13:26:27"
   },
   "history": [
+    {
+      "time": "2026-01-18 13:26:27",
+      "files": 0,
+      "details": ""
+    },
     {
       "time": "2026-01-18 12:50:58",
       "files": 0,
@@ -250,11 +255,6 @@
     },
     {
       "time": "2026-01-17 18:30:28",
-      "files": 0,
-      "details": ""
-    },
-    {
-      "time": "2026-01-17 18:14:16",
       "files": 0,
       "details": ""
     }
